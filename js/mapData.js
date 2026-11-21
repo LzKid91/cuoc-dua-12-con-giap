@@ -3,6 +3,13 @@ export const ZODIACS = [
   'Ngọ', 'Mùi', 'Thân', 'Dậu', 'Tuất', 'Hợi'
 ];
 
+export const SEASON_BONUS_ZODIACS = {
+  XUAN: ['Dần', 'Mão', 'Thìn'],
+  HA:   ['Tỵ', 'Ngọ', 'Mùi'],
+  THU:  ['Thân', 'Dậu', 'Tuất'],
+  DONG: ['Hợi', 'Tý', 'Sửu']
+};
+
 export const SEASONS = {
   XUAN: { name: 'Mùa Xuân', cx: -9.7, cy: -9.0, plain: 'xuan_plain' },
   HA:   { name: 'Mùa Hạ',   cx: -9.7, cy:  9.0, plain: 'ha_plain' },
@@ -10,26 +17,28 @@ export const SEASONS = {
   DONG: { name: 'Mùa Đông', cx:  9.7, cy: -9.0, plain: 'dong_plain' }
 };
 
+export const START_HEXES = ['XUAN:0,-4', 'XUAN:1,-4', 'XUAN:2,-4', 'XUAN:3,-4', 'XUAN:4,-4'];
+
 export const TERRAIN_META = {
-  xuan_plain:   { label: 'Đồng bằng Xuân',   cost: 1,  passable: true,  fill: '#DCF0C8', stroke: '#8FB573' },
-  ha_plain:     { label: 'Đồng bằng Hạ',     cost: 1,  passable: true,  fill: '#FCE3C2', stroke: '#D49A5E' },
-  thu_plain:    { label: 'Đường mòn Thu',    cost: 1,  passable: true,  fill: '#F7DFC4', stroke: '#C99563' },
-  dong_plain:   { label: 'Đồng bằng Đông',   cost: 1,  passable: true,  fill: '#E3EEF7', stroke: '#8FAEC7' },
-  start:        { label: 'Ô Xuất Phát',      cost: 1,  passable: true,  fill: '#A8DF8E', stroke: '#2E7D32', text: 'XP' },
-  river:        { label: 'Sông Suối',        cost: 99, passable: false, fill: '#64B5F6', stroke: '#1E88E5', text: '≈' },
-  lava:         { label: 'Ô Lửa',            cost: 1,  passable: true,  fill: '#EF6C4D', stroke: '#B71C1C', text: '▲' },
-  forest:       { label: 'Rừng Phong',       cost: 2,  passable: true,  fill: '#C46D3B', stroke: '#7C3A16', text: '2' },
-  snow:         { label: 'Tuyết Dày',        cost: 3,  passable: true,  fill: '#B7CEE3', stroke: '#547A9E', text: '3' },
-  ice:          { label: 'Băng Trơn',        cost: 1,  passable: true,  fill: '#80DEEA', stroke: '#00838F', text: '»' },
-  station_big:  { label: 'Trạm +2 Thẻ',      cost: 1,  passable: true,  fill: '#FFD54F', stroke: '#E65100', text: '+2' },
-  station_sm:   { label: 'Trạm +1 Thẻ',      cost: 1,  passable: true,  fill: '#FFE082', stroke: '#EF6C00', text: '+1' },
-  bridge_short: { label: 'Cầu Ngắn (Hiểm)',  cost: 1,  passable: true,  fill: '#D88A52', stroke: '#7A2E0E', text: 'CẦU' },
-  bridge_long:  { label: 'Cầu Dài (An toàn)',cost: 1,  passable: true,  fill: '#B89B72', stroke: '#5D4037', text: 'CẦU' },
-  finish:       { label: 'Thiên Đình (Đích)',cost: 1,  passable: true,  fill: '#FFD700', stroke: '#B8860B', text: '★' }
+  xuan_plain:   { label: 'Đồng bằng Xuân',    cost: 1,  passable: true,  fill: '#DCF0C8', stroke: '#8FB573' },
+  ha_plain:     { label: 'Đồng bằng Hạ',      cost: 1,  passable: true,  fill: '#FCE3C2', stroke: '#D49A5E' },
+  thu_plain:    { label: 'Đường mòn Thu',     cost: 1,  passable: true,  fill: '#F7DFC4', stroke: '#C99563' },
+  dong_plain:   { label: 'Đồng bằng Đông',    cost: 1,  passable: true,  fill: '#E3EEF7', stroke: '#8FAEC7' },
+  start:        { label: 'Ô Xuất Phát',       cost: 1,  passable: true,  fill: '#A8DF8E', stroke: '#2E7D32', text: 'XP' },
+  river:        { label: 'Sông Suối',         cost: 99, passable: false, fill: '#64B5F6', stroke: '#1E88E5', text: '≈' },
+  lava:         { label: 'Ô Lửa',             cost: 1,  passable: true,  fill: '#EF6C4D', stroke: '#B71C1C', text: '▲' },
+  forest:       { label: 'Rừng Phong',        cost: 2,  passable: true,  fill: '#C46D3B', stroke: '#7C3A16', text: '2' },
+  snow:         { label: 'Tuyết Dày',         cost: 3,  passable: true,  fill: '#B7CEE3', stroke: '#547A9E', text: '3' },
+  ice:          { label: 'Băng Trơn',         cost: 1,  passable: true,  fill: '#80DEEA', stroke: '#00838F', text: '»' },
+  station_big:  { label: 'Trạm +2 Thẻ',       cost: 1,  passable: true,  fill: '#FFD54F', stroke: '#E65100', text: '+2' },
+  station_sm:   { label: 'Trạm +1 Thẻ',       cost: 1,  passable: true,  fill: '#FFE082', stroke: '#EF6C00', text: '+1' },
+  bridge_short: { label: 'Cầu Ngắn (Hiểm)',   cost: 1,  passable: true,  fill: '#D88A52', stroke: '#7A2E0E', text: 'CẦU' },
+  bridge_long:  { label: 'Cầu Dài (An toàn)', cost: 1,  passable: true,  fill: '#B89B72', stroke: '#5D4037', text: 'CẦU' },
+  finish:       { label: 'Thiên Đình (Đích)', cost: 1,  passable: true,  fill: '#FFD700', stroke: '#B8860B', text: '★' }
 };
 
 const SQRT3 = Math.sqrt(3);
-const DIRS = [[1,0], [-1,0], [0,1], [0,-1], [1,-1], [-1,1]];
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
 
 function axialToSvg(q, r, cx, cy) {
   const x = cx + SQRT3 * (q + r / 2);
@@ -131,8 +140,29 @@ export function buildBoardGraph() {
   return { nodes, bridges, finishId };
 }
 
-export function getReachableHexes(graph, startId, maxMp, extraCost = 0) {
+export function getHexDistance(graph, idA, idB) {
+  if (idA === idB) return 0;
+  const visited = new Map([[idA, 0]]);
+  const queue = [idA];
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    const d = visited.get(cur);
+    for (const nid of graph.nodes[cur].neighbors) {
+      if (!TERRAIN_META[graph.nodes[nid].terrain].passable) continue;
+      if (nid === idB) return d + 1;
+      if (!visited.has(nid)) {
+        visited.set(nid, d + 1);
+        queue.push(nid);
+      }
+    }
+  }
+  return Infinity;
+}
+
+export function getReachableHexes(graph, startId, maxMp, options = {}) {
+  const { extraCost = 0, flatCostOne = false } = options;
   const bestCost = { [startId]: 0 };
+  const prev = {};
   const pq = [{ id: startId, cost: 0 }];
   const reachable = new Set();
 
@@ -146,26 +176,39 @@ export function getReachableHexes(graph, startId, maxMp, extraCost = 0) {
       const meta = TERRAIN_META[target.terrain];
       if (!meta.passable) continue;
 
-      const stepCost = meta.cost + extraCost;
+      const baseCost = flatCostOne ? 1 : meta.cost;
+      const stepCost = Math.max(1, baseCost + extraCost);
       let nextCost = cost + stepCost;
 
+      // Quy tắc Bước Tối Thiểu: từ ô xuất phát luôn bước được tối thiểu 1 ô hợp lệ
       if (id === startId && maxMp >= 1 && stepCost > maxMp) {
         nextCost = maxMp;
       }
 
       if (nextCost <= maxMp && (bestCost[nid] === undefined || nextCost < bestCost[nid])) {
         bestCost[nid] = nextCost;
+        prev[nid] = id;
         reachable.add(nid);
         if (nextCost < maxMp) pq.push({ id: nid, cost: nextCost });
       }
     }
   }
-  return { reachable, bestCost };
+  return { reachable, bestCost, prev };
 }
 
-export function getChallengeZone(graph, centerId) {
+export function reconstructPath(prev, startId, targetId) {
+  const path = [];
+  let cur = targetId;
+  while (cur && cur !== startId) {
+    path.unshift(cur);
+    cur = prev[cur];
+  }
+  return path;
+}
+
+export function getChallengeZone(graph, centerId, overrideRadius = null) {
   const center = graph.nodes[centerId];
-  const radius = center.season === 'HA' ? 2 : 1;
+  const radius = overrideRadius !== null ? overrideRadius : (center.season === 'HA' ? 2 : 1);
   const zone = new Set();
   const visited = new Map([[centerId, 0]]);
   const queue = [centerId];
@@ -184,4 +227,66 @@ export function getChallengeZone(graph, centerId) {
     }
   }
   return zone;
+}
+
+// Đẩy lùi N ô ra xa Đích nhất (stayInSeason = true dùng cho Trọng Thương để không lùi qua cầu)
+export function computePushBackHex(graph, startId, steps, stayInSeason = false) {
+  let cur = startId;
+  const originSeason = graph.nodes[startId].season;
+  for (let i = 0; i < steps; i++) {
+    const curNode = graph.nodes[cur];
+    let best = cur;
+    let bestDist = curNode.distToFinish;
+    for (const nid of curNode.neighbors) {
+      const next = graph.nodes[nid];
+      if (!TERRAIN_META[next.terrain].passable) continue;
+      if (stayInSeason && originSeason !== 'BRIDGE' && next.season !== originSeason) continue;
+      if (next.distToFinish > bestDist) {
+        bestDist = next.distToFinish;
+        best = nid;
+      }
+    }
+    if (best === cur) break;
+    cur = best;
+  }
+  return cur;
+}
+
+// Tiến thẳng N ô về phía Đích nhất (bỏ qua chi phí địa hình, không xuyên Sông/Vực)
+export function computeAdvanceHex(graph, startId, steps) {
+  let cur = startId;
+  for (let i = 0; i < steps; i++) {
+    const curNode = graph.nodes[cur];
+    if (cur === graph.finishId) break;
+    let best = cur;
+    let bestDist = curNode.distToFinish;
+    for (const nid of curNode.neighbors) {
+      const next = graph.nodes[nid];
+      if (!TERRAIN_META[next.terrain].passable) continue;
+      if (next.distToFinish < bestDist) {
+        bestDist = next.distToFinish;
+        best = nid;
+      }
+    }
+    if (best === cur) break;
+    cur = best;
+  }
+  return cur;
+}
+
+// Trượt Băng Trơn thêm 1 ô theo đúng hướng bước vào
+export function computeIceSlide(graph, prevId, iceId) {
+  const prev = graph.nodes[prevId];
+  const ice = graph.nodes[iceId];
+  if (!prev || !ice || prev.season !== ice.season || prev.q === null || ice.q === null) {
+    return iceId;
+  }
+  const dq = ice.q - prev.q;
+  const dr = ice.r - prev.r;
+  const nextId = `${ice.season}:${ice.q + dq},${ice.r + dr}`;
+  const nextNode = graph.nodes[nextId];
+  if (nextNode && TERRAIN_META[nextNode.terrain].passable) {
+    return nextId;
+  }
+  return iceId;
 }

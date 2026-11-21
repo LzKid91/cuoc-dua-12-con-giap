@@ -3,7 +3,6 @@
   --panel: #fffdf7;
   --border: #c5b49e;
   --text: #2c1e16;
-  --accent: #b71c1c;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -17,14 +16,15 @@ body {
 .topbar {
   background: #2c2520;
   color: #fff8ee;
-  padding: 10px 18px;
+  padding: 9px 16px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
-.topbar h1 { font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.topbar h1 { font-size: 1.02rem; }
 .badge {
   background: #d4af37;
   color: #2c1e16;
@@ -33,82 +33,206 @@ body {
   border-radius: 999px;
   font-weight: 700;
 }
-.controls { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; flex-wrap: wrap; }
+.controls { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; flex-wrap: wrap; }
 .controls input[type="text"] {
   padding: 6px 9px;
   border-radius: 6px;
   border: none;
-  width: 135px;
-  font-size: 0.88rem;
+  width: 130px;
+  font-size: 0.86rem;
 }
 button {
   background: #d84315;
   color: #fff;
   border: none;
-  padding: 6px 12px;
+  padding: 6px 11px;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
 }
 button:hover { filter: brightness(0.92); }
 .btn-green { background: #2e7d32; }
+.btn-muted { background: #6d4c41; }
+.btn-active { background: #1565c0; outline: 2px solid #ffd600; }
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.callout-banner {
+  background: #4a148c;
+  color: #fff;
+  padding: 10px 16px;
+  text-align: center;
+  border-bottom: 3px solid #ffd600;
+}
 
 .layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 310px;
+  grid-template-columns: 1fr 370px;
   overflow: hidden;
 }
 .board-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: 6px;
   overflow: hidden;
 }
 #gameBoard {
   width: 100%;
   height: 100%;
-  max-height: calc(100vh - 70px);
+  max-height: calc(100vh - 64px);
   user-select: none;
 }
 .sidebar {
   background: var(--panel);
   border-left: 1px solid var(--border);
-  padding: 16px;
+  padding: 12px 14px;
   overflow-y: auto;
 }
-.sidebar h2 { font-size: 0.95rem; margin: 14px 0 8px; color: #5d4037; }
+.sidebar h2 { font-size: 0.88rem; margin: 12px 0 6px; color: #5d4037; }
 .sidebar h2:first-child { margin-top: 0; }
 .card {
   background: #f9f4ea;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px;
-  font-size: 0.86rem;
-  line-height: 1.5;
+  padding: 9px 10px;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
-.legend { list-style: none; font-size: 0.83rem; display: flex; flex-direction: column; gap: 6px; }
-.legend li { display: flex; align-items: center; gap: 8px; }
-.dot { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #555; flex-shrink: 0; }
-.dot.plain { background: #dcf0c8; }
-.dot.forest { background: #c46d3b; }
-.dot.snow { background: #b7cee3; }
-.dot.ice { background: #80deea; }
-.dot.lava { background: #ef6c4d; }
-.dot.river { background: #64b5f6; }
-.dot.station { background: #ffd54f; }
-.dot.finish { background: #ffd700; }
+.secret-box {
+  background: #ede7f6;
+  border: 1px solid #b39ddb;
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 8px;
+}
+.turn-header { font-size: 0.92rem; padding-bottom: 6px; border-bottom: 1px solid #e0d4c3; }
+.event-pill {
+  background: #fff3e0;
+  border-left: 3px solid #ef6c00;
+  padding: 5px 8px;
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+.linhkhi-box, .combat-box {
+  background: #ffebee;
+  border: 1px solid #ef9a9a;
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 8px;
+}
+.banner-win {
+  background: #fff8e1;
+  border: 2px solid #fbc02d;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  color: #7f0000;
+}
+
+/* Xúc xắc 4d6 */
+.dice-row { display: flex; gap: 8px; margin: 8px 0; }
+.die-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  background: #78909c;
+}
+.die-btn small { font-size: 0.64rem; margin-top: 3px; }
+.die-clock { background: #c62828; border: 2px solid #ffd600; }
+.die-move { background: #00796b; border: 2px solid #a7ffeb; }
+.die-reroll { background: #6a1b9a; border: 2px solid #ffd600; }
+
+/* Danh sách người chơi */
+.player-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 6px;
+  border-bottom: 1px solid #e8dfd2;
+  border-radius: 5px;
+}
+.player-row.active-turn { background: #fff8e1; border: 1px solid #fbc02d; }
+.sub-meta { font-size: 0.74rem; color: #6d4c41; }
+.right-meta { text-align: right; font-weight: 700; font-size: 0.8rem; }
+
+/* Thẻ trên tay */
+.hand-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #d7ccc8;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.tag {
+  background: #efebe9;
+  color: #5d4037;
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.card-desc { font-size: 0.75rem; color: #5d4037; margin-top: 2px; }
+.card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.card-use-btn { background: #2e7d32; padding: 4px 7px; font-size: 0.76rem; }
+.card-drop-btn { background: #bdbdbd; color: #212121; padding: 4px 6px; font-size: 0.76rem; }
+.warn-bar {
+  background: #ffebee;
+  color: #b71c1c;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 5px;
+  margin-bottom: 6px;
+}
+
+/* Nhật ký */
+.log-box { max-height: 150px; overflow-y: auto; font-size: 0.78rem; }
+.log-line { padding: 3px 0; border-bottom: 1px dashed #e0d4c3; }
+
+/* Modal Tra cứu */
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.modal-content {
+  background: #fffdf7;
+  width: min(760px, 94vw);
+  max-height: 85vh;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-header {
+  background: #2c2520; color: #fff;
+  padding: 12px 16px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.modal-body { padding: 14px 16px; overflow-y: auto; display: grid; gap: 10px; }
+.guide-item { background: #f9f4ea; border: 1px solid #d7ccc8; border-radius: 6px; padding: 8px 10px; font-size: 0.82rem; }
+.guide-item h4 { color: #b71c1c; margin-bottom: 4px; }
 
 /* Tương tác ô lục giác */
 .hex-cell { cursor: pointer; transition: filter 0.12s; }
 .hex-cell:hover { filter: brightness(0.92); }
-.hex-reachable { stroke: #00897b !important; stroke-width: 0.16 !important; filter: brightness(1.06); }
+.hex-reachable { stroke: #00897b !important; stroke-width: 0.22 !important; filter: brightness(1.07); }
 .hex-challenge { stroke: #d50000 !important; stroke-width: 0.14 !important; stroke-dasharray: 0.3 0.18; }
 .hex-selected { stroke: #1a237e !important; stroke-width: 0.22 !important; }
 
-@media (max-width: 850px) {
-  .layout { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
-  .sidebar { border-left: none; border-top: 1px solid var(--border); max-height: 240px; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: 52vh 1fr; }
+  .sidebar { border-left: none; border-top: 1px solid var(--border); }
 }

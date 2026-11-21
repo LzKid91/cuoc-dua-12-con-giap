@@ -25,6 +25,7 @@ export class BoardRenderer {
     this.onHexClick = onHexClick;
     this.hexElements = {};
     this.clockHand = null;
+    this.trapLayer = null;
     this.pawnLayer = null;
     this.render();
   }
@@ -32,7 +33,7 @@ export class BoardRenderer {
   render() {
     this.svg.innerHTML = '';
 
-    // 1. Vẽ nền cầu gỗ nối 2 đầu lục địa
+    // 1. Nền cầu gỗ nối giữa các lục địa
     const bridgeLayer = el('g');
     for (const br of this.graph.bridges) {
       const a = this.graph.nodes[br.a];
@@ -54,11 +55,11 @@ export class BoardRenderer {
     for (const lb of labels) {
       this.svg.appendChild(el('text', {
         x: lb.x, y: lb.y, 'text-anchor': 'middle',
-        fill: lb.color, 'font-size': '0.95', 'font-weight': '700'
+        fill: lb.color, 'font-size': '0.92', 'font-weight': '700'
       }, lb.text));
     }
 
-    // 3. Vẽ toàn bộ 250 ô lục giác
+    // 3. Toàn bộ 250 ô lục giác
     const hexLayer = el('g');
     for (const node of Object.values(this.graph.nodes)) {
       const meta = TERRAIN_META[node.terrain];
@@ -76,7 +77,7 @@ export class BoardRenderer {
         g.appendChild(el('text', {
           x: node.x, y: node.y + 0.22, 'text-anchor': 'middle',
           fill: darkText ? '#212121' : '#FFFFFF',
-          'font-size': meta.text.length > 2 ? '0.48' : '0.68',
+          'font-size': meta.text.length > 2 ? '0.46' : '0.66',
           'font-weight': '700', 'pointer-events': 'none'
         }, meta.text));
       }
@@ -87,11 +88,13 @@ export class BoardRenderer {
     }
     this.svg.appendChild(hexLayer);
 
-    // 4. Vẽ Đồng hồ 24h tại tâm (0, 0)
+    // 4. Đồng hồ 24h trung tâm
     this.renderClock();
 
-    // 5. Lớp quân cờ nằm trên cùng
+    // 5. Lớp Token Bẫy & Quân cờ
+    this.trapLayer = el('g', { 'pointer-events': 'none' });
     this.pawnLayer = el('g', { 'pointer-events': 'none' });
+    this.svg.appendChild(this.trapLayer);
     this.svg.appendChild(this.pawnLayer);
   }
 
@@ -111,11 +114,11 @@ export class BoardRenderer {
 
       g.appendChild(el('text', {
         x: tx, y: ty - 0.08, 'text-anchor': 'middle', fill: color,
-        'font-size': '0.36', 'font-weight': '700'
+        'font-size': '0.35', 'font-weight': '700'
       }, `${hr}h`));
       g.appendChild(el('text', {
         x: tx, y: ty + 0.28, 'text-anchor': 'middle', fill: color,
-        'font-size': '0.34', 'font-weight': '700'
+        'font-size': '0.33', 'font-weight': '700'
       }, zodiac));
     }
 
@@ -137,16 +140,35 @@ export class BoardRenderer {
   highlightHexes(selectedId, reachableSet, challengeSet) {
     for (const [id, poly] of Object.entries(this.hexElements)) {
       poly.classList.remove('hex-selected', 'hex-reachable', 'hex-challenge');
-      if (challengeSet.has(id)) poly.classList.add('hex-challenge');
-      if (reachableSet.has(id)) poly.classList.add('hex-reachable');
+      if (challengeSet && challengeSet.has(id)) poly.classList.add('hex-challenge');
+      if (reachableSet && reachableSet.has(id)) poly.classList.add('hex-reachable');
       if (id === selectedId) poly.classList.add('hex-selected');
     }
   }
 
-  drawAllPawns(playersObj) {
+  drawTraps(trapsArr) {
+    this.trapLayer.innerHTML = '';
+    for (const trap of trapsArr || []) {
+      const n = this.graph.nodes[trap.hexId];
+      if (!n) continue;
+      const color = trap.type === 'DOC' ? '#4A148C' : (trap.type === 'VUNG_CAM' ? '#B71C1C' : '#3E2723');
+      const label = trap.type === 'DOC' ? 'ĐỘC' : (trap.type === 'VUNG_CAM' ? 'CẤM' : 'BẪY');
+      const pts = `${n.x},${n.y - 0.58} ${n.x + 0.52},${n.y + 0.42} ${n.x - 0.52},${n.y + 0.42}`;
+      this.trapLayer.appendChild(el('polygon', {
+        points: pts, fill: color, stroke: '#FFFFFF', 'stroke-width': 0.09
+      }));
+      this.trapLayer.appendChild(el('text', {
+        x: n.x, y: n.y + 0.28, 'text-anchor': 'middle',
+        fill: '#FFFFFF', 'font-size': '0.28', 'font-weight': '700'
+      }, label));
+    }
+  }
+
+  drawAllPawns(playersObj, activePlayerId = null) {
     this.pawnLayer.innerHTML = '';
     const byHex = {};
     for (const p of Object.values(playersObj || {})) {
+      if (!p.hexId) continue;
       if (!byHex[p.hexId]) byHex[p.hexId] = [];
       byHex[p.hexId].push(p);
     }
@@ -155,14 +177,21 @@ export class BoardRenderer {
       const n = this.graph.nodes[hexId];
       if (!n) continue;
       list.forEach((p, idx) => {
-        const offset = list.length > 1 ? (idx - (list.length - 1) / 2) * 0.45 : 0;
+        const offset = list.length > 1 ? (idx - (list.length - 1) / 2) * 0.48 : 0;
+        const isActive = p.id === activePlayerId;
+        if (isActive) {
+          this.pawnLayer.appendChild(el('circle', {
+            cx: n.x + offset, cy: n.y, r: 0.72,
+            fill: 'none', stroke: '#FFD600', 'stroke-width': 0.16
+          }));
+        }
         this.pawnLayer.appendChild(el('circle', {
           cx: n.x + offset, cy: n.y, r: 0.54,
           fill: p.color || '#D32F2F', stroke: '#FFFFFF', 'stroke-width': 0.12
         }));
         this.pawnLayer.appendChild(el('text', {
           x: n.x + offset, y: n.y + 0.16, 'text-anchor': 'middle',
-          fill: '#FFFFFF', 'font-size': '0.38', 'font-weight': '700'
+          fill: '#FFFFFF', 'font-size': '0.36', 'font-weight': '700'
         }, p.zodiac.toUpperCase()));
       });
     }

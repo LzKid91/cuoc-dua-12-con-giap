@@ -10,6 +10,11 @@ const PAWN_COLORS = [
   '#303F9F', '#AFB42B', '#E64A19', '#455A64'
 ];
 
+export function toArray(val) {
+  if (!val) return [];
+  return Array.isArray(val) ? val : Object.values(val);
+}
+
 export function getLocalPlayerId() {
   let id = localStorage.getItem('zodiac_player_id');
   if (!id) {
@@ -26,25 +31,60 @@ function generateRoomCode() {
   return code;
 }
 
+function makePlayerObj(id, name, zodiac, color, isBot = false) {
+  return {
+    id,
+    name,
+    zodiac,
+    color,
+    isBot,
+    hexId: null,
+    hp: 3,
+    cooldownTD: 0,
+    cooldownHidden: 0,
+    hiddenUses: 0,
+    hiddenRevealed: false,
+    revealedVariant: null,
+    handCount: 0,
+    claimedStations: [],
+    pendingSelf: [],
+    statusFlags: {}
+  };
+}
+
 export async function createRoom(playerName) {
   const roomCode = generateRoomCode();
   const playerId = getLocalPlayerId();
-  const zodiacIndex = Math.floor(Math.random() * ZODIACS.length);
+  const zodiac = ZODIACS[Math.floor(Math.random() * ZODIACS.length)];
 
   const initialPublic = {
     hostId: playerId,
-    status: 'lobby',
+    status: 'lobby', // lobby | draft | playing | finished
     clockHour: 3,
+    round: 1,
+    direction: 1, // 1: thuận, -1: ngược
+    reverseUntilPlayerId: null,
+    reverseRoundsLeft: 0,
+    blizzardRoundsLeft: 0,
+    roundEventTriggered: false,
+    turnsInRound: 0,
+    lastThienZodiac: null,
+    turnOrder: [],
+    currentTurnIdx: 0,
+    draftOrder: [],
+    draftIdx: 0,
+    supportDeck: [],
+    supportDiscard: [],
+    eventDeck: [],
+    traps: [],
+    lastEvent: null,
+    winnerId: null,
+    turn: null,
+    combat: null,
+    callout: null,
+    logs: ['Phòng đã được tạo. Chọn biến thể Ẩn A/B rồi bấm Bắt đầu ván đấu!'],
     players: {
-      [playerId]: {
-        id: playerId,
-        name: playerName || 'Người chơi 1',
-        zodiac: ZODIACS[zodiacIndex],
-        color: PAWN_COLORS[0],
-        hexId: 'XUAN:2,-4',
-        hp: 3,
-        order: 1
-      }
+      [playerId]: makePlayerObj(playerId, playerName || 'Chủ phòng', zodiac, PAWN_COLORS[0], false)
     }
   };
 
@@ -69,24 +109,16 @@ export async function joinRoom(roomCode, playerName) {
   const players = pub.players || {};
 
   if (!players[playerId]) {
+    if (pub.status !== 'lobby') throw new Error('Ván đấu đã bắt đầu, không thể vào thêm!');
     const usedZodiacs = new Set(Object.values(players).map(p => p.zodiac));
     const available = ZODIACS.filter(z => !usedZodiacs.has(z));
     if (available.length === 0) throw new Error('Phòng đã đủ 12 Con Giáp!');
 
     const chosenZodiac = available[Math.floor(Math.random() * available.length)];
     const count = Object.keys(players).length;
-    const startHexes = ['XUAN:0,-4', 'XUAN:1,-4', 'XUAN:2,-4', 'XUAN:3,-4', 'XUAN:4,-4'];
+    const pObj = makePlayerObj(playerId, playerName || `Người chơi ${count + 1}`, chosenZodiac, PAWN_COLORS[count % PAWN_COLORS.length], false);
 
-    await set(ref(db, `rooms/${code}/public/players/${playerId}`), {
-      id: playerId,
-      name: playerName || `Người chơi ${count + 1}`,
-      zodiac: chosenZodiac,
-      color: PAWN_COLORS[count % PAWN_COLORS.length],
-      hexId: startHexes[count % startHexes.length],
-      hp: 3,
-      order: count + 1
-    });
-
+    await set(ref(db, `rooms/${code}/public/players/${playerId}`), pObj);
     await set(ref(db, `rooms/${code}/private/${playerId}`), {
       hiddenChoice: 'A',
       hand: []
@@ -96,21 +128,54 @@ export async function joinRoom(roomCode, playerName) {
   return { roomCode: code, playerId };
 }
 
-export function subscribeRoom(roomCode, onPublicChange) {
-  const pubRef = ref(db, `rooms/${roomCode}/public`);
-  return onValue(pubRef, (snap) => {
-    if (snap.exists()) onPublicChange(snap.val());
+export async function addBotToRoom(roomCode) {
+  const snap = await get(ref(db, `rooms/${roomCode}/public`));
+  if (!snap.exists()) return;
+  const pub = snap.val();
+  if (pub.status !== 'lobby') return;
+
+  const players = pub.players || {};
+  const usedZodiacs = new Set(Object.values(players).map(p => p.zodiac));
+  const available = ZODIACS.filter(z => !usedZodiacs.has(z));
+  if (available.length === 0) throw new Error('Đã đủ 12 Con Giáp!');
+
+  const chosenZodiac = available[Math.floor(Math.random() * available.length)];
+  const count = Object.keys(players).length;
+  const botId = 'BOT_' + Math.random().toString(36).substring(2, 7);
+  const botObj = makePlayerObj(botId, `Bot ${chosenZodiac}`, chosenZodiac, PAWN_COLORS[count % PAWN_COLORS.length], true);
+
+  await set(ref(db, `rooms/${roomCode}/public/players/${botId}`), botObj);
+  await set(ref(db, `rooms/${roomCode}/private/${botId}`), {
+    hiddenChoice: Math.random() < 0.5 ? 'A' : 'B',
+    hand: []
   });
 }
 
-export function syncMovePawn(roomCode, playerId, newHexId) {
-  return update(ref(db, `rooms/${roomCode}/public/players/${playerId}`), {
-    hexId: newHexId
+export function subscribePublic(roomCode, onChange) {
+  return onValue(ref(db, `rooms/${roomCode}/public`), (snap) => {
+    if (snap.exists()) onChange(snap.val());
   });
 }
 
-export function syncClockHour(roomCode, newHour) {
-  return update(ref(db, `rooms/${roomCode}/public`), {
-    clockHour: newHour
+export function subscribePrivate(roomCode, playerId, onChange) {
+  return onValue(ref(db, `rooms/${roomCode}/private/${playerId}`), (snap) => {
+    if (snap.exists()) onChange(snap.val());
   });
+}
+
+export async function getPrivateData(roomCode, playerId) {
+  const snap = await get(ref(db, `rooms/${roomCode}/private/${playerId}`));
+  return snap.exists() ? snap.val() : { hiddenChoice: 'A', hand: [] };
+}
+
+export async function savePublicState(roomCode, newState) {
+  await set(ref(db, `rooms/${roomCode}/public`), newState);
+}
+
+export async function savePrivateData(roomCode, playerId, data) {
+  await set(ref(db, `rooms/${roomCode}/private/${playerId}`), data);
+}
+
+export async function setHiddenChoice(roomCode, playerId, choice) {
+  await update(ref(db, `rooms/${roomCode}/private/${playerId}`), { hiddenChoice: choice });
 }
