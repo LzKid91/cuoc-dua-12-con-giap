@@ -49,6 +49,7 @@ function makePlayerObj(id, name, zodiac, color, isBot = false) {
     handCount: 0,
     claimedStations: [],
     pendingSelf: [],
+    gateProgress: 0,
     statusFlags: {}
   };
 }
