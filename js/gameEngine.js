@@ -69,15 +69,31 @@ function planSkillRelocation(state, graph, player, targetHexId) {
   let reachedCheckpoint = null;
   const fromRank = seasonRankForPlayer(graph, fromHexId, nextProgress);
   const toRank = seasonRankForPlayer(graph, targetHexId, nextProgress);
+  const targetCheckpointIndex = toNode.checkpointIndex;
 
-  // Dịch chuyển tiến sang mùa sau chỉ được bỏ qua tối đa 1 cổng còn thiếu.
-  if (toRank > fromRank && fromRank >= 0) {
+  // Nếu đích chính là checkpoint, tính chính xác số cổng phải bỏ qua trước khi chạm đích.
+  if (targetCheckpointIndex !== undefined && targetCheckpointIndex >= nextProgress) {
+    const skippedCount = targetCheckpointIndex - nextProgress;
+    if (skippedCount > 1) {
+      return {
+        allowed: false,
+        reason: `Không thể dịch chuyển tới checkpoint này vì phải bỏ qua ${skippedCount} cổng; mỗi lần dịch chuyển chỉ được bỏ qua tối đa 1.`
+      };
+    }
+    if (skippedCount === 1) {
+      skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+    }
+    nextProgress = targetCheckpointIndex;
+    reachedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+    nextProgress += 1;
+  } else if (toRank > fromRank && fromRank >= 0) {
+    // Dịch chuyển sang mùa sau: mọi checkpoint còn thiếu của mùa trước phải được tính.
     const required = toRank * 3;
     const missing = Math.max(0, required - nextProgress);
     if (missing > 1) {
       return {
         allowed: false,
-        reason: `Không thể dịch chuyển tới ${SEASON_ORDER[toRank]}: còn phải hoàn thành ${missing} checkpoint trước đó (mỗi lần dịch chuyển chỉ bỏ qua tối đa 1).`
+        reason: `Không thể dịch chuyển tới ${SEASON_ORDER[toRank]}: còn thiếu ${missing} checkpoint trước đó; mỗi lần dịch chuyển chỉ được bỏ qua tối đa 1.`
       };
     }
     if (missing === 1) {
@@ -88,18 +104,10 @@ function planSkillRelocation(state, graph, player, targetHexId) {
     toRank === fromRank &&
     fromRank >= 0 &&
     toNode.distToFinish < fromNode.distToFinish &&
-    nextProgress < (fromRank + 1) * 3 &&
-    toNode.checkpointIndex !== nextProgress
+    nextProgress < (fromRank + 1) * 3
   ) {
-    // Dịch chuyển tiến trong cùng mùa có thể bỏ qua đúng 1 checkpoint kế tiếp.
+    // Dịch chuyển tiến tới ô thường trong cùng mùa có thể bỏ qua đúng checkpoint kế tiếp.
     skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
-    nextProgress += 1;
-  }
-
-  // Đáp xuống đúng checkpoint kế tiếp vẫn được ghi nhận như chạm cổng,
-  // không tính là một checkpoint bị bỏ qua.
-  if (toNode.checkpointIndex === nextProgress) {
-    reachedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
     nextProgress += 1;
   }
 
@@ -147,6 +155,14 @@ function applySkillSwap(state, graph, player, target, reason = 'Hoán đổi') {
   target.hexId = playerHex;
   player.gateProgress = playerPlan.nextProgress;
   target.gateProgress = targetPlan.nextProgress;
+
+  const finisher = player.hexId === graph.finishId ? player
+    : (target.hexId === graph.finishId ? target : null);
+  if (finisher && finisher.gateProgress === 12) {
+    state.status = 'finished';
+    state.winnerId = finisher.id;
+    addLog(state, `🏆 CHIẾN THẮNG! ${finisher.zodiac} hoán đổi vị trí tới Thiên Đình sau khi hoàn thành 12 checkpoint!`);
+  }
 
   for (const [moved, plan] of [[player, playerPlan], [target, targetPlan]]) {
     if (plan.skippedCheckpoint) {
