@@ -206,12 +206,12 @@ export class BoardRenderer {
 
     // Biển huy hiệu trên các cầu
     const bridgeBadges = [
-      { id: 'BRIDGE:XH_L', text: 'CẦU DÀI', arrow: '▲' },
-      { id: 'BRIDGE:XH_S', text: 'CẦU NGẮN', arrow: '▲' },
-      { id: 'BRIDGE:HT_L', text: 'CẦU DÀI', arrow: '▶' },
-      { id: 'BRIDGE:HT_S', text: 'CẦU NGẮN', arrow: '▶' },
-      { id: 'BRIDGE:TD_S', text: 'CẦU NGẮN', arrow: '▼' },
-      { id: 'BRIDGE:TD_L', text: 'CẦU DÀI', arrow: '▼' }
+      { id: 'BRIDGE:XH_L', text: 'DÀI · 2MP', sub: 'AN TOÀN', arrow: '▲' },
+      { id: 'BRIDGE:XH_S', text: 'NGẮN · 1MP', sub: 'CÓ BẪY', arrow: '▲' },
+      { id: 'BRIDGE:HT_L', text: 'DÀI · 2MP', sub: 'AN TOÀN', arrow: '▶' },
+      { id: 'BRIDGE:HT_S', text: 'NGẮN · 1MP', sub: 'CÓ BẪY', arrow: '▶' },
+      { id: 'BRIDGE:TD_S', text: 'NGẮN · 1MP', sub: 'CÓ BẪY', arrow: '▼' },
+      { id: 'BRIDGE:TD_L', text: 'DÀI · 2MP', sub: 'AN TOÀN', arrow: '▼' }
     ];
 
     for (const b of bridgeBadges) {
@@ -223,9 +223,14 @@ export class BoardRenderer {
         fill: '#EFEBE9', stroke: '#6D4C41', 'stroke-width': 0.11
       }));
       bg.appendChild(el('text', {
-        x: node.x, y: node.y - 0.22, 'text-anchor': 'middle',
-        fill: '#4E342E', 'font-size': '0.28', 'font-weight': '900'
+        x: node.x, y: node.y - 0.28, 'text-anchor': 'middle',
+        fill: '#4E342E', 'font-size': '0.25', 'font-weight': '900'
       }, b.text));
+      bg.appendChild(el('text', {
+        x: node.x, y: node.y + 0.02, 'text-anchor': 'middle',
+        fill: b.sub === 'AN TOÀN' ? '#1B5E20' : '#8D3B12',
+        'font-size': '0.20', 'font-weight': '900'
+      }, b.sub));
       bg.appendChild(el('circle', {
         cx: node.x, cy: node.y + 0.20, r: 0.38,
         fill: '#D7CCC8', stroke: '#5D4037', 'stroke-width': 0.07
@@ -260,6 +265,9 @@ export class BoardRenderer {
       if (!isBridge) {
         this.renderHexSymbol(g, node, meta);
       }
+      if (node.checkpointIndex !== undefined) {
+        this.renderCheckpointMarker(g, node);
+      }
 
       g.addEventListener('click', () => this.onHexClick(node.id));
       if (this.onHexHover) {
@@ -272,6 +280,36 @@ export class BoardRenderer {
       this.hexElements[node.id] = poly;
     }
     this.svg.appendChild(hexLayer);
+  }
+
+  renderCheckpointMarker(g, node) {
+    const x = node.x + 0.52;
+    const y = node.y - 0.50;
+    const localNumber = (node.checkpointIndex % 3) + 1;
+    const seasonColors = {
+      XUAN: '#2E7D32',
+      HA: '#C62828',
+      THU: '#8D4A20',
+      DONG: '#1565C0'
+    };
+    const color = seasonColors[node.checkpointSeason] || '#8D6E63';
+
+    // Huy hiệu nhỏ ở góc ô để nhận diện checkpoint nhưng không che địa hình.
+    g.appendChild(el('circle', {
+      cx: x, cy: y, r: 0.28,
+      fill: '#FFFDF5', stroke: '#D4AF37', 'stroke-width': 0.10,
+      'pointer-events': 'none'
+    }));
+    g.appendChild(el('circle', {
+      cx: x, cy: y, r: 0.20,
+      fill: color, stroke: '#FFFFFF', 'stroke-width': 0.04,
+      'pointer-events': 'none'
+    }));
+    g.appendChild(el('text', {
+      x, y: y + 0.09, 'text-anchor': 'middle',
+      fill: '#FFFFFF', 'font-size': '0.24', 'font-weight': '900',
+      'pointer-events': 'none'
+    }, `${localNumber}`));
   }
 
   renderHexSymbol(g, node, meta) {
