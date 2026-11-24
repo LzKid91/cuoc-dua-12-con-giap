@@ -668,6 +668,7 @@ async function triggerZodiacClockSkill(roomCode, state, graph, owner, isThien) {
       const fakeOwner = { ...owner, zodiac: state.lastThienZodiac };
       await triggerZodiacClockSkill(roomCode, state, graph, fakeOwner, true);
       owner.hexId = fakeOwner.hexId;
+      owner.gateProgress = fakeOwner.gateProgress;
       owner.statusFlags = fakeOwner.statusFlags;
       owner.pendingSelf = fakeOwner.pendingSelf;
     } else if (state.turn.playerId === owner.id) {
@@ -834,7 +835,7 @@ function applySelfSkillEffectInStep5(state, graph, p, zodiac, isThien) {
     if (ahead[0] && getHexDistance(graph, p.hexId, ahead[0].hexId) <= 5) {
       const target = ahead[0];
       const jumpHex = computePushBackHex(graph, target.hexId, 1, false);
-      p.hexId = jumpHex;
+      applySkillRelocation(state, graph, p, jumpHex, 'Đào Hang');
       addLog(state, `🐀 Tý kích hoạt Đào Hang nhảy tới sau lưng ${target.zodiac}!`);
     }
   } else if (zodiac === 'Mão' && !isThien) {
