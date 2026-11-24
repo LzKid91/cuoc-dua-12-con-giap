@@ -287,6 +287,9 @@ export function getReachableHexes(graph, startId, maxMp, options = {}) {
       }
       if (checkpointIndex === current.progress) nextProgress += 1;
 
+      // Thiên Đình chỉ mở sau khi người chơi hoàn thành đủ 12 checkpoint.
+      if (nid === graph.finishId && nextProgress < 12) continue;
+
       const bridgeId = graph.nodes[current.id].season === 'BRIDGE'
         ? current.id
         : (target.season === 'BRIDGE' ? nid : null);
