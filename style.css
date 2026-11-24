@@ -239,3 +239,48 @@ button:hover { filter: brightness(0.92); }
   .layout { grid-template-columns: 1fr; grid-template-rows: 52vh 1fr; }
   .sidebar { border-left: none; border-top: 1px solid var(--border); }
 }
+
+
+/* Chọn ô di chuyển bằng danh sách dự phòng khi thao tác trên bản đồ không thuận tiện */
+.move-fallback {
+  margin: 8px 0;
+  border: 1px solid #c5b49e;
+  border-radius: 7px;
+  background: #fffdf7;
+  padding: 7px 9px;
+}
+.move-fallback summary {
+  cursor: pointer;
+  color: #1565c0;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+.move-option-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  margin-top: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.move-option-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: #e8f5e9;
+  color: #1b4332;
+  border: 1px solid #a5d6a7;
+  font-size: 0.78rem;
+}
+.move-option-btn small {
+  display: block;
+  color: #456b56;
+  font-weight: 500;
+}
+.move-empty {
+  color: #b71c1c;
+  font-size: 0.8rem;
+}
