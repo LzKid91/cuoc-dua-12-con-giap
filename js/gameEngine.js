@@ -1326,15 +1326,16 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
   if (targetHexId !== startHexId) {
     const mp = calculateCurrentMp(state, graph);
     const extraCost = state.blizzardRoundsLeft > 0 ? 1 : 0;
-    const { reachable, prev } = getReachableHexes(graph, startHexId, mp, {
+    const { reachable, pathByHex } = getReachableHexes(graph, startHexId, mp, {
       extraCost,
-      flatCostOne: state.turn.flatCostOne
+      flatCostOne: state.turn.flatCostOne,
+      gateProgress: p.gateProgress ?? 12
     });
     if (!reachable.has(targetHexId)) {
       throw new Error(`Ô ${targetHexId} hiện không nằm trong tầm di chuyển (${mp} MP). Hãy chọn một ô đích đang được viền xanh.`);
     }
 
-    const path = reconstructPath(prev, startHexId, targetHexId);
+    const path = pathByHex[targetHexId] || [];
     if (path.length === 0) {
       throw new Error('Không tìm được đường đi tới ô đã chọn. Hãy thử chọn ô khác.');
     }
@@ -1344,6 +1345,13 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
       finalHex = stepHex;
       movedSteps += 1;
       const node = graph.nodes[stepHex];
+
+      // Ghi nhận checkpoint theo đúng thứ tự khi đi qua từng ô.
+      if (node.checkpointIndex === p.gateProgress) {
+        const checkpoint = ALL_CHECKPOINTS[p.gateProgress];
+        p.gateProgress += 1;
+        if (checkpoint) addLog(state, `🏁 ${p.zodiac} vượt ${checkpoint.name}! Tiến độ ${p.gateProgress}/12.`);
+      }
 
       // 1. Trạm Rút Thẻ (đi qua hoặc dừng đều tính 1 lần mỗi ván)
       if ((node.terrain === 'station_sm' || node.terrain === 'station_big') && !p.claimedStations.includes(stepHex)) {
@@ -1355,7 +1363,7 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
 
       // 2. Token Bẫy
       const trapIdx = state.traps.findIndex(t => t.hexId === stepHex && t.ownerId !== pid);
-      if (trapIdx !== -1 && !state.turn.ignoreTraps) {
+      if (trapIdx !== -1 && !state.turn.ignoreTraps && node.terrain !== 'bridge_long') {
         const [trap] = state.traps.splice(trapIdx, 1);
         if (trap.type === 'DOC') {
           p.statusFlags.poisoned = true;
@@ -1751,7 +1759,11 @@ export async function runBotStep(roomCode, rawState, graph) {
   } else if (state.turn.phase === 'STEP5_MOVE') {
     const mp = calculateCurrentMp(state, graph);
     const extraCost = state.blizzardRoundsLeft > 0 ? 1 : 0;
-    const { reachable } = getReachableHexes(graph, p.hexId, mp, { extraCost, flatCostOne: state.turn.flatCostOne });
+    const { reachable } = getReachableHexes(graph, p.hexId, mp, {
+      extraCost,
+      flatCostOne: state.turn.flatCostOne,
+      gateProgress: p.gateProgress ?? 12
+    });
     let bestHex = p.hexId;
     let bestDist = graph.nodes[p.hexId].distToFinish;
     for (const h of reachable) {
