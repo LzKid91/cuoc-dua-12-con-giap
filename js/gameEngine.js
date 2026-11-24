@@ -101,6 +101,7 @@ function planSkillRelocation(state, graph, player, targetHexId) {
       nextProgress += 1;
     }
   } else if (
+    toNode.checkpointIndex === undefined &&
     toRank === fromRank &&
     fromRank >= 0 &&
     toNode.distToFinish < fromNode.distToFinish &&
