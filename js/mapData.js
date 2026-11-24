@@ -23,20 +23,20 @@ export const SEASON_CHECKPOINTS = {
   XUAN: [
     { hexId: 'XUAN:0,0', name: 'Cổng Hoa Khởi Xuân' },
     { hexId: 'XUAN:-4,1', name: 'Cổng Bờ Sông' },
-    { hexId: 'XUAN:-1,2', name: 'Cổng Vườn Đào' }
+    { hexId: 'XUAN:-3,3', name: 'Cổng Vườn Đào' }
   ],
   HA: [
     { hexId: 'HA:1,-2', name: 'Cổng Tro Nóng' },
     { hexId: 'HA:-1,3', name: 'Cổng Dung Nham' },
-    { hexId: 'HA:4,0', name: 'Cổng Hỏa Sơn' }
+    { hexId: 'HA:3,1', name: 'Cổng Hỏa Sơn' }
   ],
   THU: [
     { hexId: 'THU:-2,0', name: 'Cổng Rừng Ngoài' },
     { hexId: 'THU:-1,-2', name: 'Cổng Rừng Sâu' },
-    { hexId: 'THU:1,-2', name: 'Cổng Lá Vàng' }
+    { hexId: 'THU:0,-3', name: 'Cổng Lá Vàng' }
   ],
   DONG: [
-    { hexId: 'DONG:-3,3', name: 'Cổng Tuyết Trắng' },
+    { hexId: 'DONG:-2,3', name: 'Cổng Tuyết Trắng' },
     { hexId: 'DONG:-2,1', name: 'Cổng Băng Ngầm' },
     { hexId: 'DONG:-1,0', name: 'Cổng Băng Lam' }
   ]
