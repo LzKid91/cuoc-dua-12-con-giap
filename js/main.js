@@ -57,7 +57,11 @@ const renderer = new BoardRenderer($('gameBoard'), graph, async (hexId) => {
       flatCostOne: pubState.turn.flatCostOne
     });
     if (reachable.has(hexId)) {
-      await executeMove(currentRoom, pubState, graph, hexId);
+      try {
+        await executeMove(currentRoom, pubState, graph, hexId);
+      } catch (error) {
+        alert(error?.message || 'Không thể thực hiện di chuyển. Hãy thử chọn ô bằng danh sách bên dưới.');
+      }
       return;
     }
   }
@@ -361,8 +365,31 @@ function renderActionPanel() {
     }
   } else if (turn.phase === 'STEP5_MOVE') {
     const mp = calculateCurrentMp(pubState, graph);
+    const extraCost = pubState.blizzardRoundsLeft > 0 ? 1 : 0;
+    const { reachable, bestCost } = getReachableHexes(graph, me.hexId, mp, {
+      extraCost,
+      flatCostOne: turn.flatCostOne
+    });
+    const moveOptions = [...reachable]
+      .map(hexId => {
+        const node = graph.nodes[hexId];
+        return { id: hexId, node, cost: bestCost[hexId] };
+      })
+      .sort((a, b) => a.node.distToFinish - b.node.distToFinish || a.cost - b.cost);
     html += `
-      <p style="margin:6px 0;"><strong>Bước 5 – Di chuyển:</strong> Bạn có <strong>${mp} MP</strong>. Bấm vào bất kỳ ô <strong>viền xanh lá</strong> trên bản đồ để đi!</p>
+      <p style="margin:6px 0;"><strong>Bước 5 – Di chuyển:</strong> Bạn có <strong>${mp} MP</strong> và <strong>${moveOptions.length} ô có thể đến</strong>. Bấm ô viền xanh trên bản đồ để di chuyển.</p>
+      <details class="move-fallback">
+        <summary>Không bấm được ô trên bản đồ? Chọn đích tại đây (${moveOptions.length} ô)</summary>
+        <div class="move-option-list">
+          ${moveOptions.length ? moveOptions.map(option => {
+            const meta = TERRAIN_META[option.node.terrain];
+            return `<button type="button" class="move-option-btn" data-hex-id="${option.id}">
+              <strong>${meta.label}</strong>
+              <small>${option.id} · Chi phí đường đi: ${option.cost} MP · Cách đích: ${option.node.distToFinish} ô</small>
+            </button>`;
+          }).join('') : '<p class="move-empty">Không tìm thấy ô hợp lệ để di chuyển. Hãy kiểm tra vị trí quân cờ và nhật ký lượt.</p>'}
+        </div>
+      </details>
       <div class="btn-row">
         <button id="btnStayStill" class="btn-muted">Đứng yên (0 ô)</button>
         ${me.hiddenUses < 2 && me.cooldownHidden === 0 ? '<button id="btnUseHidden">👁️ Dùng Kỹ năng Ẩn</button>' : ''}
@@ -429,7 +456,23 @@ function renderActionPanel() {
   $('btnToStep5')?.addEventListener('click', async () => {
     try { await proceedToStep5(currentRoom, pubState, graph); } catch (e) { alert(e.message); }
   });
-  $('btnStayStill')?.addEventListener('click', () => executeMove(currentRoom, pubState, graph, me.hexId));
+  $('btnStayStill')?.addEventListener('click', async () => {
+    try {
+      await executeMove(currentRoom, pubState, graph, me.hexId);
+    } catch (error) {
+      alert(error?.message || 'Không thể kết thúc bước di chuyển.');
+    }
+  });
+  document.querySelectorAll('.move-option-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const targetHexId = btn.dataset.hexId;
+      try {
+        await executeMove(currentRoom, pubState, graph, targetHexId);
+      } catch (error) {
+        alert(error?.message || 'Không thể di chuyển tới ô đã chọn.');
+      }
+    });
+  });
   $('btnUseHidden')?.addEventListener('click', async () => {
     try { await declareHiddenSkill(currentRoom, pubState, graph, myPlayerId); } catch (e) { alert(e.message); }
   });

@@ -1020,7 +1020,13 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
 
   const pid = state.turn.playerId;
   const p = state.players[pid];
-  const startHexId = p.hexId;
+  const startHexId = p?.hexId;
+  if (!p || !graph.nodes[startHexId]) {
+    throw new Error('Không xác định được vị trí hiện tại của quân cờ. Hãy tải lại phòng và kiểm tra trạng thái người chơi.');
+  }
+  if (!graph.nodes[targetHexId]) {
+    throw new Error('Ô đích không tồn tại trên bản đồ. Hãy chọn một ô viền xanh.');
+  }
   const others = Object.values(state.players).filter(o => o.id !== pid);
 
   let finalHex = startHexId;
@@ -1033,9 +1039,14 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
       extraCost,
       flatCostOne: state.turn.flatCostOne
     });
-    if (!reachable.has(targetHexId)) return;
+    if (!reachable.has(targetHexId)) {
+      throw new Error(`Ô ${targetHexId} hiện không nằm trong tầm di chuyển (${mp} MP). Hãy chọn một ô đích đang được viền xanh.`);
+    }
 
     const path = reconstructPath(prev, startHexId, targetHexId);
+    if (path.length === 0) {
+      throw new Error('Không tìm được đường đi tới ô đã chọn. Hãy thử chọn ô khác.');
+    }
     let prevStep = startHexId;
 
     for (const stepHex of path) {

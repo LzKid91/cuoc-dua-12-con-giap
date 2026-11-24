@@ -396,7 +396,8 @@ export class BoardRenderer {
   }
 
   renderClock() {
-    const g = el('g');
+    // Đồng hồ chỉ để hiển thị; không được chặn click lên các ô lục giác bên dưới.
+    const g = el('g', { 'pointer-events': 'none' });
     const rOuter = 3.9;
     const rInner = 2.05;
 
