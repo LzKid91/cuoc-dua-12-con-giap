@@ -6,7 +6,7 @@ import { SUPPORT_CARD_DEFS, ZODIAC_DATA } from './cardsData.js';
 import { BoardRenderer } from './boardRenderer.js';
 import {
   createRoom, joinRoom, addBotToRoom, subscribePublic,
-  subscribePrivate, setHiddenChoice, toArray
+  subscribePrivate, subscribeConnection, setHiddenChoice, toArray
 } from './roomSync.js';
 import {
   startGame, pickStartHex, rollFourDice, rerollSelectedDice,
@@ -23,6 +23,7 @@ let currentRoom = null;
 let myPlayerId = null;
 let pubState = null;
 let privState = { hiddenChoice: 'A', hand: [] };
+let firebaseConnected = null;
 let selectedClockDice = [0, 1];
 let rerollPickIndices = [];
 let rerollMode = null; // null | { type: 'CARD', cardIndex } | { type: 'SKILL' }
@@ -87,17 +88,31 @@ document.addEventListener('click', async (event) => {
   button.disabled = true;
   button.textContent = 'Đang chuyển sang Bước 5...';
 
+  let timeoutId;
   try {
     if (!currentRoom || !pubState) {
       throw new Error('Chưa đồng bộ được dữ liệu phòng. Hãy tải lại trang rồi thử lại.');
     }
-    await proceedToStep5(currentRoom, pubState, graph);
+    const transitionPromise = proceedToStep5(currentRoom, pubState, graph);
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        const connectionHint = firebaseConnected === false
+          ? 'Firebase Realtime Database hiện đang mất kết nối.'
+          : firebaseConnected === true
+            ? 'Trình duyệt đang kết nối Firebase nhưng máy chủ chưa xác nhận bản ghi.'
+            : 'Chưa xác định được trạng thái kết nối Firebase.';
+        reject(new Error(`Quá thời gian chờ 12 giây khi lưu Bước 5. ${connectionHint} Mở F12 → Console để xem log [STEP4 → STEP5].`));
+      }, 12000);
+    });
+    await Promise.race([transitionPromise, timeoutPromise]);
   } catch (error) {
     console.error('[STEP4 → STEP5] Không thể chuyển bước:', error);
     button.disabled = false;
     button.dataset.processing = 'false';
     button.textContent = '▶ Sang Bước 5: Di chuyển';
     alert(error?.message || 'Không thể chuyển sang Bước 5. Mở Console (F12) để xem chi tiết.');
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 });
 
@@ -116,6 +131,10 @@ function enterRoom(roomCode, playerId) {
     privState = data || { hiddenChoice: 'A', hand: [] };
     renderHand();
     renderActionPanel();
+  });
+  subscribeConnection((connected) => {
+    firebaseConnected = connected;
+    console.info('[Firebase] Realtime Database connected:', connected);
   });
 }
 
