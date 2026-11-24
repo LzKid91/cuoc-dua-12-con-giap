@@ -959,10 +959,21 @@ export function calculateCurrentMp(state, graph) {
 
 export async function proceedToStep5(roomCode, rawState, graph) {
   const state = cloneState(rawState);
-  if (!state.turn || state.turn.phase !== 'STEP4_ACTION') return;
-  if (state.turn.linhKhiPending) throw new Error('Hãy chọn hiệu ứng Linh Khí Thời Gian trước!');
+  if (!state.turn) {
+    throw new Error('Không tìm thấy lượt hiện tại trong dữ liệu phòng. Hãy tải lại phòng.');
+  }
+  if (state.turn.phase !== 'STEP4_ACTION') {
+    throw new Error(`Trạng thái lượt đã thay đổi (hiện tại: ${state.turn.phase}). Hãy chờ đồng bộ rồi thử lại.`);
+  }
+  if (state.turn.linhKhiPending) {
+    throw new Error('Hãy chọn một hiệu ứng Linh Khí Thời Gian trước khi sang Bước 5!');
+  }
 
   const p = state.players[state.turn.playerId];
+  if (!p) {
+    throw new Error('Không tìm thấy người chơi đang giữ lượt. Hãy tải lại phòng.');
+  }
+  p.pendingSelf = toArray(p.pendingSelf);
 
   // Áp dụng các kỹ năng [Tự thân] đang chờ của chủ nhân
   if (p.pendingSelf.includes('Sửu_THIEN')) {
@@ -1010,6 +1021,7 @@ export async function proceedToStep5(roomCode, rawState, graph) {
   // Xóa các pendingSelf đã dùng (giữ lại Hợi Địa / Mùi Địa kiểm tra cuối di chuyển)
   p.pendingSelf = p.pendingSelf.filter(x => ['Hợi_DIA', 'Mùi_DIA'].includes(x));
   state.turn.phase = 'STEP5_MOVE';
+  addLog(state, `➡️ ${p.zodiac} đã chuyển sang Bước 5 – Di chuyển (${calculateCurrentMp(state, graph)} MP).`);
 
   await savePublicState(roomCode, state);
 }

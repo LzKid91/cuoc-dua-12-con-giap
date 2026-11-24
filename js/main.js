@@ -73,6 +73,34 @@ const renderer = new BoardRenderer($('gameBoard'), graph, async (hexId) => {
   `;
 });
 
+// Delegate this dynamic control at document level so panel re-renders cannot
+// detach its click handler. Give immediate feedback and expose transition errors.
+document.addEventListener('click', async (event) => {
+  const button = event.target.closest('#btnToStep5');
+  if (!button) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  if (button.dataset.processing === 'true') return;
+
+  button.dataset.processing = 'true';
+  button.disabled = true;
+  button.textContent = 'Đang chuyển sang Bước 5...';
+
+  try {
+    if (!currentRoom || !pubState) {
+      throw new Error('Chưa đồng bộ được dữ liệu phòng. Hãy tải lại trang rồi thử lại.');
+    }
+    await proceedToStep5(currentRoom, pubState, graph);
+  } catch (error) {
+    console.error('[STEP4 → STEP5] Không thể chuyển bước:', error);
+    button.disabled = false;
+    button.dataset.processing = 'false';
+    button.textContent = '▶ Sang Bước 5: Di chuyển';
+    alert(error?.message || 'Không thể chuyển sang Bước 5. Mở Console (F12) để xem chi tiết.');
+  }
+});
+
 function enterRoom(roomCode, playerId) {
   currentRoom = roomCode;
   myPlayerId = playerId;
@@ -358,7 +386,7 @@ function renderActionPanel() {
     } else {
       html += `
         <div class="btn-row" style="margin-top:6px;">
-          <button id="btnToStep5" class="btn-green">▶ Sang Bước 5: Di chuyển</button>
+          <button type="button" id="btnToStep5" class="btn-green">▶ Sang Bước 5: Di chuyển</button>
           ${me.hiddenUses < 2 && me.cooldownHidden === 0 ? '<button id="btnUseHidden">👁️ Dùng Kỹ năng Ẩn</button>' : ''}
         </div>
       `;
@@ -453,9 +481,6 @@ function renderActionPanel() {
   $('lkMp')?.addEventListener('click', () => chooseLinhKhi(currentRoom, pubState, 'MP'));
   $('lkPlus')?.addEventListener('click', () => chooseLinhKhi(currentRoom, pubState, 'CLOCK_PLUS'));
   $('lkMinus')?.addEventListener('click', () => chooseLinhKhi(currentRoom, pubState, 'CLOCK_MINUS'));
-  $('btnToStep5')?.addEventListener('click', async () => {
-    try { await proceedToStep5(currentRoom, pubState, graph); } catch (e) { alert(e.message); }
-  });
   $('btnStayStill')?.addEventListener('click', async () => {
     try {
       await executeMove(currentRoom, pubState, graph, me.hexId);
