@@ -29,13 +29,16 @@ function continentPoints(cx, cy, R = 7.9) {
 }
 
 export class BoardRenderer {
-  constructor(svgElement, graph, onHexClick) {
+  constructor(svgElement, graph, onHexClick, onHexHover = null, onHexLeave = null) {
     this.svg = svgElement;
     this.graph = graph;
     this.onHexClick = onHexClick;
+    this.onHexHover = onHexHover;
+    this.onHexLeave = onHexLeave;
     this.hexElements = {};
     this.clockHand = null;
     this.trapLayer = null;
+    this.previewLayer = null;
     this.pawnLayer = null;
     this.render();
   }
@@ -73,10 +76,12 @@ export class BoardRenderer {
     // 8. CÁC HỌA TIẾT TRANG TRÍ 4 GÓC (Mặt trời, Lá phong, Hoa đào, Bông tuyết)
     this.renderCornerDecorations();
 
-    // 9. CÁC LỚP TOKEN BẪY & QUÂN CỜ
+    // 9. CÁC LỚP TOKEN BẪY, XEM TRƯỚC LỘ TRÌNH & QUÂN CỜ
     this.trapLayer = el('g', { 'pointer-events': 'none', id: 'trapLayer' });
+    this.previewLayer = el('g', { 'pointer-events': 'none', id: 'previewLayer' });
     this.pawnLayer = el('g', { 'pointer-events': 'none', id: 'pawnLayer' });
     this.svg.appendChild(this.trapLayer);
+    this.svg.appendChild(this.previewLayer);
     this.svg.appendChild(this.pawnLayer);
   }
 
@@ -257,6 +262,12 @@ export class BoardRenderer {
       }
 
       g.addEventListener('click', () => this.onHexClick(node.id));
+      if (this.onHexHover) {
+        g.addEventListener('mouseenter', () => this.onHexHover(node.id));
+      }
+      if (this.onHexLeave) {
+        g.addEventListener('mouseleave', () => this.onHexLeave(node.id));
+      }
       hexLayer.appendChild(g);
       this.hexElements[node.id] = poly;
     }
@@ -624,6 +635,44 @@ export class BoardRenderer {
       if (reachableSet && reachableSet.has(id)) poly.classList.add('hex-reachable');
       if (id === selectedId) poly.classList.add('hex-selected');
     }
+  }
+
+  showPathPreview(pathHexIds) {
+    if (!this.previewLayer) return;
+    this.previewLayer.innerHTML = '';
+    if (!pathHexIds || pathHexIds.length < 2) return;
+
+    let d = '';
+    pathHexIds.forEach((hid, idx) => {
+      const n = this.graph.nodes[hid];
+      if (!n) return;
+      if (idx === 0) d += `M ${n.x},${n.y}`;
+      else d += ` L ${n.x},${n.y}`;
+    });
+
+    // Đường nét phát sáng rực rỡ
+    this.previewLayer.appendChild(el('path', {
+      d, fill: 'none', stroke: '#00e676', 'stroke-width': '0.34',
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: '0.45'
+    }));
+    this.previewLayer.appendChild(el('path', {
+      d, fill: 'none', stroke: '#ffd600', 'stroke-width': '0.18',
+      'stroke-dasharray': '0.28 0.16', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+    }));
+
+    // Vòng tròn đánh dấu điểm đến
+    const lastNode = this.graph.nodes[pathHexIds[pathHexIds.length - 1]];
+    if (lastNode) {
+      this.previewLayer.appendChild(el('circle', {
+        cx: lastNode.x, cy: lastNode.y, r: 0.65,
+        fill: 'none', stroke: '#ffd600', 'stroke-width': 0.16,
+        'stroke-dasharray': '0.22 0.14'
+      }));
+    }
+  }
+
+  clearPathPreview() {
+    if (this.previewLayer) this.previewLayer.innerHTML = '';
   }
 
   drawTraps(trapsArr) {

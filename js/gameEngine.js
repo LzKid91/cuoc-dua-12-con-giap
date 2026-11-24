@@ -938,17 +938,18 @@ async function executeHiddenSkillEffect(roomCode, state, graph, playerId, varian
 // 6. BƯỚC 5 – TÍNH MP CHÍNH XÁC, DI CHUYỂN & HIỆU ỨNG ĐỊA HÌNH / BẪY
 // =====================================================================
 export function calculateCurrentMp(state, graph) {
-  if (!state.turn) return 0;
-  const p = state.players[state.turn.playerId];
-  let mp = state.turn.moveSum + state.turn.bonusMp;
+  if (!state || !state.turn) return 0;
+  const p = state.players?.[state.turn.playerId];
+  if (!p) return 0;
+  let mp = (state.turn.moveSum || 0) + (state.turn.bonusMp || 0);
 
   // Mùa Đắc Địa (+1 MP)
-  const season = graph.nodes[p.hexId]?.season;
+  const season = graph?.nodes?.[p.hexId]?.season;
   if (season && SEASON_BONUS_ZODIACS[season]?.includes(p.zodiac)) {
     mp += 1;
   }
   // Nọc Độc (-3 MP)
-  if (p.statusFlags.poisoned) {
+  if (p.statusFlags?.poisoned) {
     mp = Math.max(1, mp - 3);
   }
   if (state.turn.doubleMp) {
@@ -974,17 +975,19 @@ export async function proceedToStep5(roomCode, rawState, graph) {
     throw new Error('Không tìm thấy người chơi đang giữ lượt. Hãy tải lại phòng.');
   }
   p.pendingSelf = toArray(p.pendingSelf);
+  p.claimedStations = toArray(p.claimedStations);
+  p.statusFlags = p.statusFlags || {};
 
   // Áp dụng các kỹ năng [Tự thân] đang chờ của chủ nhân
   if (p.pendingSelf.includes('Sửu_THIEN')) {
     const { lastPlace, bestDist } = getRankings(state, graph);
-    const myDist = graph.nodes[p.hexId].distToFinish;
+    const myDist = graph.nodes[p.hexId]?.distToFinish ?? 999;
     const bonus = (lastPlace.includes(p.id) || myDist - bestDist >= 4) ? 3 : 1;
-    state.turn.bonusMp += bonus;
+    state.turn.bonusMp = (state.turn.bonusMp || 0) + bonus;
     addLog(state, `🐂 Thiên Mệnh kích hoạt: Sửu nhận +${bonus} MP!`);
   }
   if (p.pendingSelf.includes('Ngọ_THIEN') && state.turn.isMovePair) {
-    state.turn.bonusMp += 4;
+    state.turn.bonusMp = (state.turn.bonusMp || 0) + 4;
     addLog(state, `🐎 Thiên Mã kích hoạt (nhóm Di chuyển ra đôi): Ngọ nhận +4 MP!`);
   }
   if (p.pendingSelf.includes('Ngọ_DIA')) {
@@ -996,12 +999,13 @@ export async function proceedToStep5(roomCode, rawState, graph) {
   }
   if (p.pendingSelf.includes('Tý_DIA')) {
     // Đào Hang: nhảy tới sau lưng người gần nhất phía trước (tối đa 5 ô)
-    const myDist = graph.nodes[p.hexId].distToFinish;
+    const myDist = graph.nodes[p.hexId]?.distToFinish ?? 999;
     const ahead = Object.values(state.players)
-      .filter(o => o.id !== p.id && graph.nodes[o.hexId].distToFinish < myDist)
-      .sort((a, b) => graph.nodes[b.hexId].distToFinish - graph.nodes[a.hexId].distToFinish)[0];
+      .filter(o => o.id !== p.id && (graph.nodes[o.hexId]?.distToFinish ?? 999) < myDist)
+      .sort((a, b) => (graph.nodes[b.hexId]?.distToFinish ?? 999) - (graph.nodes[a.hexId]?.distToFinish ?? 999))[0];
     if (ahead) {
-      const steps = Math.min(5, Math.max(1, myDist - graph.nodes[ahead.hexId].distToFinish - 1));
+      const aheadDist = graph.nodes[ahead.hexId]?.distToFinish ?? 999;
+      const steps = Math.min(5, Math.max(1, myDist - aheadDist - 1));
       p.hexId = computeAdvanceHex(graph, p.hexId, steps);
       addLog(state, `🐀 Đào Hang kích hoạt: Tý nhảy tiến +${steps} ô bám đuôi ${ahead.zodiac}!`);
     }
@@ -1010,7 +1014,7 @@ export async function proceedToStep5(roomCode, rawState, graph) {
   if (p.pendingSelf.includes('Mão_DIA')) {
     const nearCount = Object.values(state.players).filter(o => o.id !== p.id && getHexDistance(graph, p.hexId, o.hexId) <= 3).length;
     if (nearCount > 0) {
-      state.turn.bonusMp += nearCount * 2;
+      state.turn.bonusMp = (state.turn.bonusMp || 0) + nearCount * 2;
       addLog(state, `🐇 Nhảy Bật kích hoạt: Mão nhận +${nearCount * 2} MP!`);
     }
   }
@@ -1038,6 +1042,7 @@ export async function proceedToStep5(roomCode, rawState, graph) {
     roomCode,
     playerId: p.id
   });
+  return state;
 }
 
 export async function executeMove(roomCode, rawState, graph, targetHexId) {
@@ -1103,7 +1108,7 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
 
       // 3. Mùa Thu: đi ngang qua Vùng Khiêu Chiến 1 ô bị khóa chân giao chiến
       if (node.season === 'THU' && !state.turn.ignoreThuLock) {
-        const blockedBy = others.find(o => !o.statusFlags.immuneUntilNextTurn && getHexDistance(graph, stepHex, o.hexId) <= 1);
+        const blockedBy = others.find(o => !o?.statusFlags?.immuneUntilNextTurn && getHexDistance(graph, stepHex, o.hexId) <= 1);
         if (blockedBy) {
           addLog(state, `🍁 Mùa Thu Khóa Chân! ${p.zodiac} bị ${blockedBy.zodiac} chặn lại giao chiến!`);
           break;
@@ -1160,7 +1165,7 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
 
   p.hexId = finalHex;
   state.turn.movedHexesCount = movedSteps;
-  delete p.statusFlags.poisoned; // Hết độc sau khi đã chịu phạt ở lượt này
+  if (p.statusFlags) delete p.statusFlags.poisoned; // Hết độc sau khi đã chịu phạt ở lượt này
 
   // Kiểm tra kỹ năng [Tự thân] cuối di chuyển (Hợi Địa, Mùi Địa)
   if (p.pendingSelf.includes('Hợi_DIA')) {
@@ -1196,7 +1201,7 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
   // Kiểm tra Vùng Khiêu Chiến (1 ô mặc định, 2 ô Mùa Hạ)
   const zone = getChallengeZone(graph, finalHex);
   const targets = others.filter(o =>
-    !o.statusFlags.immuneUntilNextTurn && (o.hexId === finalHex || zone.has(o.hexId))
+    !o?.statusFlags?.immuneUntilNextTurn && (o.hexId === finalHex || zone.has(o.hexId))
   );
 
   if (targets.length === 1) {
@@ -1221,22 +1226,22 @@ async function startCombat1v1(roomCode, state, graph, attackerId, defenderId) {
   const season = graph.nodes[atk.hexId].season;
 
   // Kiểm tra lá chắn hủy giao chiến từ Mão A / Hợi A / Hợi B (cấm phòng thủ ở Mùa Hạ)
-  if (season !== 'HA' && def.statusFlags.maoCancelCombat) {
-    delete def.statusFlags.maoCancelCombat;
+  if (season !== 'HA' && def?.statusFlags?.maoCancelCombat) {
+    if (def.statusFlags) delete def.statusFlags.maoCancelCombat;
     atk.hexId = computePushBackHex(graph, atk.hexId, 2, false);
     addLog(state, `🐇 Thế Thân kích hoạt! Hủy Giao chiến và đẩy ${atk.zodiac} lùi 2 ô!`);
     state.turn.phase = 'STEP5_END';
     return;
   }
-  if (season !== 'HA' && def.statusFlags.hoiSleepShield) {
-    delete def.statusFlags.hoiSleepShield;
+  if (season !== 'HA' && def?.statusFlags?.hoiSleepShield) {
+    if (def.statusFlags) delete def.statusFlags.hoiSleepShield;
     atk.hexId = computePushBackHex(graph, atk.hexId, 1, false);
     addLog(state, `🐷 Giấc Ngủ Vàng hủy Giao chiến và đẩy ${atk.zodiac} lùi 1 ô!`);
     state.turn.phase = 'STEP5_END';
     return;
   }
-  if (season !== 'HA' && def.statusFlags.hoiSleepSteal) {
-    delete def.statusFlags.hoiSleepSteal;
+  if (season !== 'HA' && def?.statusFlags?.hoiSleepSteal) {
+    if (def.statusFlags) delete def.statusFlags.hoiSleepSteal;
     const stolen = await stealRandomCard(roomCode, state, defenderId, attackerId);
     addLog(state, `🐷 Mộng Du hủy Giao chiến${stolen ? ` và cướp [${stolen}] từ ${atk.zodiac}` : ''}!`);
     state.turn.phase = 'STEP5_END';
@@ -1249,14 +1254,14 @@ async function startCombat1v1(roomCode, state, graph, attackerId, defenderId) {
     attackerId,
     defenderId,
     season,
-    atkBonus: (atk.statusFlags.combatBonusOnce || 0) + (atk.statusFlags.danRoarBonus || 0),
-    defBonus: (def.statusFlags.combatBonusOnce || 0) + (def.statusFlags.guardBonus || 0),
+    atkBonus: (atk?.statusFlags?.combatBonusOnce || 0) + (atk?.statusFlags?.danRoarBonus || 0),
+    defBonus: (def?.statusFlags?.combatBonusOnce || 0) + (def?.statusFlags?.guardBonus || 0),
     atkUsedCard: false,
     defUsedCard: false,
     peaceProposedBy: null
   };
-  delete atk.statusFlags.combatBonusOnce;
-  delete def.statusFlags.combatBonusOnce;
+  if (atk?.statusFlags) delete atk.statusFlags.combatBonusOnce;
+  if (def?.statusFlags) delete def.statusFlags.combatBonusOnce;
   addLog(state, `⚔️ GIAO CHIẾN 1v1: ${atk.zodiac} vs ${def.zodiac}!`);
 }
 

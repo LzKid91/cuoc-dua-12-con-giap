@@ -231,7 +231,37 @@ button:hover { filter: brightness(0.92); }
 /* Tương tác ô lục giác */
 .hex-cell { cursor: pointer; transition: filter 0.12s; }
 .hex-cell:hover { filter: brightness(0.92); }
-.hex-reachable { stroke: #00897b !important; stroke-width: 0.22 !important; filter: brightness(1.07); }
+
+@keyframes reachableGlow {
+  0% {
+    stroke: #00c853;
+    stroke-width: 0.22;
+    filter: drop-shadow(0 0 0.15px rgba(0, 200, 83, 0.75));
+  }
+  50% {
+    stroke: #69f0ae;
+    stroke-width: 0.32;
+    filter: drop-shadow(0 0 0.4px rgba(105, 240, 174, 0.95)) brightness(1.15);
+  }
+  100% {
+    stroke: #00c853;
+    stroke-width: 0.22;
+    filter: drop-shadow(0 0 0.15px rgba(0, 200, 83, 0.75));
+  }
+}
+
+.hex-reachable {
+  stroke: #00c853 !important;
+  stroke-width: 0.24 !important;
+  animation: reachableGlow 1.8s infinite ease-in-out !important;
+  cursor: pointer !important;
+}
+.hex-reachable:hover {
+  stroke: #ffd600 !important;
+  stroke-width: 0.36 !important;
+  filter: drop-shadow(0 0 0.5px rgba(255, 214, 0, 1)) brightness(1.25) !important;
+}
+
 .hex-challenge { stroke: #d50000 !important; stroke-width: 0.14 !important; stroke-dasharray: 0.3 0.18; }
 .hex-selected { stroke: #1a237e !important; stroke-width: 0.22 !important; }
 
@@ -240,8 +270,59 @@ button:hover { filter: brightness(0.92); }
   .sidebar { border-left: none; border-top: 1px solid var(--border); }
 }
 
+/* Giao diện Bước 5 Di chuyển tối ưu */
+.step5-banner {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border: 1px solid #81c784;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 6px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mp-badge {
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: #1b5e20;
+}
+.best-move-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #e65100 0%, #f57c00 100%) !important;
+  color: #fff !important;
+  border: 1px solid #bf360c !important;
+  border-radius: 7px !important;
+  padding: 8px 11px !important;
+  font-weight: 700 !important;
+  font-size: 0.83rem !important;
+  margin: 6px 0 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important;
+  transition: transform 0.1s, filter 0.1s;
+}
+.best-move-btn:hover {
+  filter: brightness(1.1) !important;
+  transform: translateY(-1px);
+}
+.station-move-btn {
+  background: #fff8e1 !important;
+  color: #b78103 !important;
+  border: 1px solid #ffe082 !important;
+  border-radius: 6px !important;
+  padding: 5px 8px !important;
+  font-size: 0.77rem !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+}
+.station-move-btn:hover {
+  background: #ffecb3 !important;
+  border-color: #ffd54f !important;
+}
 
-/* Chọn ô di chuyển bằng danh sách dự phòng khi thao tác trên bản đồ không thuận tiện */
+/* Chọn ô di chuyển bằng danh sách */
 .move-fallback {
   margin: 8px 0;
   border: 1px solid #c5b49e;
@@ -270,10 +351,18 @@ button:hover { filter: brightness(0.92); }
   gap: 8px;
   width: 100%;
   text-align: left;
-  background: #e8f5e9;
+  background: #f1f8e9;
   color: #1b4332;
-  border: 1px solid #a5d6a7;
-  font-size: 0.78rem;
+  border: 1px solid #c5e1a5;
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 0.79rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.move-option-btn:hover {
+  background: #dcedc8;
+  border-color: #8bc34a;
 }
 .move-option-btn small {
   display: block;

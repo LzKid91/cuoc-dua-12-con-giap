@@ -151,9 +151,41 @@ export async function addBotToRoom(roomCode) {
   });
 }
 
+export function normalizePublicState(state) {
+  if (!state) return null;
+  state.turnOrder = toArray(state.turnOrder);
+  state.draftOrder = toArray(state.draftOrder);
+  state.supportDeck = toArray(state.supportDeck);
+  state.supportDiscard = toArray(state.supportDiscard);
+  state.eventDeck = toArray(state.eventDeck);
+  state.traps = toArray(state.traps);
+  state.logs = toArray(state.logs);
+  if (state.turn) {
+    state.turn.dice = toArray(state.turn.dice);
+    state.turn.clockIndices = toArray(state.turn.clockIndices);
+    state.turn.combatTargets = toArray(state.turn.combatTargets);
+    state.turn.bonusMp = state.turn.bonusMp || 0;
+    state.turn.moveSum = state.turn.moveSum || 0;
+  }
+  if (state.players) {
+    for (const pid of Object.keys(state.players)) {
+      const p = state.players[pid];
+      if (p) {
+        p.claimedStations = toArray(p.claimedStations);
+        p.pendingSelf = toArray(p.pendingSelf);
+        p.statusFlags = p.statusFlags || {};
+      }
+    }
+  }
+  return state;
+}
+
 export function subscribePublic(roomCode, onChange) {
   return onValue(ref(db, `rooms/${roomCode}/public`), (snap) => {
-    if (snap.exists()) onChange(snap.val());
+    if (snap.exists()) {
+      const raw = snap.val();
+      onChange(normalizePublicState(raw));
+    }
   });
 }
 

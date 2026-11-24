@@ -1,12 +1,12 @@
 import {
-  buildBoardGraph, getReachableHexes, getChallengeZone,
+  buildBoardGraph, getReachableHexes, getChallengeZone, reconstructPath,
   TERRAIN_META, ZODIACS, START_HEXES
 } from './mapData.js';
 import { SUPPORT_CARD_DEFS, ZODIAC_DATA } from './cardsData.js';
 import { BoardRenderer } from './boardRenderer.js';
 import {
   createRoom, joinRoom, addBotToRoom, subscribePublic,
-  subscribePrivate, subscribeConnection, setHiddenChoice, toArray
+  subscribePrivate, subscribeConnection, setHiddenChoice, toArray, normalizePublicState
 } from './roomSync.js';
 import {
   startGame, pickStartHex, rollFourDice, rerollSelectedDice,
@@ -30,52 +30,106 @@ let rerollMode = null; // null | { type: 'CARD', cardIndex } | { type: 'SKILL' }
 
 const $ = (id) => document.getElementById(id);
 
-const renderer = new BoardRenderer($('gameBoard'), graph, async (hexId) => {
+function handleHexHover(hexId) {
   const node = graph.nodes[hexId];
+  if (!node) return;
   const meta = TERRAIN_META[node.terrain];
 
-  if (!currentRoom || !pubState) {
-    $('hexInfo').innerHTML = `<strong>${meta.label}</strong> (${meta.passable ? meta.cost + ' MP' : 'Cấm đi'}) | Cách Đích: ${node.distToFinish} ô.`;
-    return;
-  }
+  if (pubState?.status === 'playing' && pubState.turn?.phase === 'STEP5_MOVE' && pubState.turn.playerId === myPlayerId) {
+    const me = pubState.players?.[myPlayerId];
+    if (me?.hexId) {
+      const mp = calculateCurrentMp(pubState, graph);
+      const extraCost = pubState.blizzardRoundsLeft > 0 ? 1 : 0;
+      const { reachable, bestCost, prev } = getReachableHexes(graph, me.hexId, mp, {
+        extraCost,
+        flatCostOne: pubState.turn.flatCostOne
+      });
 
-  // 1. Giai đoạn Chọn Ngược vị trí xuất phát
-  if (pubState.status === 'draft') {
-    const drafterId = toArray(pubState.draftOrder)[pubState.draftIdx];
-    if (drafterId === myPlayerId && START_HEXES.includes(hexId)) {
-      await pickStartHex(currentRoom, pubState, myPlayerId, hexId);
-    }
-    return;
-  }
-
-  // 2. Giai đoạn Bước 5: Chỉ di chuyển khi tới lượt mình & bấm vào ô viền xanh hợp lệ
-  if (pubState.status === 'playing' && pubState.turn?.phase === 'STEP5_MOVE' && pubState.turn.playerId === myPlayerId) {
-    const me = pubState.players[myPlayerId];
-    const mp = calculateCurrentMp(pubState, graph);
-    const extraCost = pubState.blizzardRoundsLeft > 0 ? 1 : 0;
-    const { reachable } = getReachableHexes(graph, me.hexId, mp, {
-      extraCost,
-      flatCostOne: pubState.turn.flatCostOne
-    });
-    if (reachable.has(hexId)) {
-      try {
-        await executeMove(currentRoom, pubState, graph, hexId);
-      } catch (error) {
-        alert(error?.message || 'Không thể thực hiện di chuyển. Hãy thử chọn ô bằng danh sách bên dưới.');
+      if (reachable.has(hexId)) {
+        const path = reconstructPath(prev, me.hexId, hexId);
+        renderer.showPathPreview([me.hexId, ...path]);
+        const cost = bestCost[hexId];
+        const diff = node.distToFinish < graph.nodes[me.hexId].distToFinish
+          ? `tiến +${graph.nodes[me.hexId].distToFinish - node.distToFinish} ô`
+          : 'ngang cự ly';
+        $('hexInfo').innerHTML = `
+          <div style="color:#1b5e20;"><strong>👉 Bấm để di chuyển tới đây! (${diff})</strong></div>
+          <strong>${meta.label}</strong> (Tốn: <b>${cost} MP</b> | Còn dư: <b>${mp - cost} MP</b>)<br/>
+          Mã ô: <code>${node.id}</code> | Cách Đích: <strong>${node.distToFinish} ô</strong>
+        `;
+        return;
+      } else if (hexId !== me.hexId) {
+        $('hexInfo').innerHTML = `
+          <div style="color:#c62828;"><strong>🚫 Ngoài tầm đi lượt này</strong> (Hiện có: ${mp} MP)</div>
+          <strong>${meta.label}</strong> (${meta.passable ? meta.cost + ' MP' : 'Cấm đi'}) | Cách Đích: <strong>${node.distToFinish} ô</strong>
+        `;
+        return;
       }
-      return;
     }
   }
 
-  // Mặc định chỉ hiển thị thông tin ô (không tự ý di chuyển!)
   $('hexInfo').innerHTML = `
     <strong>${meta.label}</strong> (${meta.passable ? meta.cost + ' MP' : 'Cấm đi'})<br/>
     Mã ô: <code>${node.id}</code> | Cách Đích: <strong>${node.distToFinish === Infinity ? '—' : node.distToFinish + ' ô'}</strong>
   `;
-});
+}
 
-// Delegate this dynamic control at document level so panel re-renders cannot
-// detach its click handler. Give immediate feedback and expose transition errors.
+function handleHexLeave(hexId) {
+  renderer.clearPathPreview();
+}
+
+const renderer = new BoardRenderer(
+  $('gameBoard'),
+  graph,
+  async (hexId) => {
+    const node = graph.nodes[hexId];
+    const meta = TERRAIN_META[node.terrain];
+
+    if (!currentRoom || !pubState) {
+      $('hexInfo').innerHTML = `<strong>${meta.label}</strong> (${meta.passable ? meta.cost + ' MP' : 'Cấm đi'}) | Cách Đích: ${node.distToFinish} ô.`;
+      return;
+    }
+
+    // 1. Giai đoạn Chọn Ngược vị trí xuất phát
+    if (pubState.status === 'draft') {
+      const drafterId = toArray(pubState.draftOrder)[pubState.draftIdx];
+      if (drafterId === myPlayerId && START_HEXES.includes(hexId)) {
+        await pickStartHex(currentRoom, pubState, myPlayerId, hexId);
+      }
+      return;
+    }
+
+    // 2. Giai đoạn Bước 5: Chỉ di chuyển khi tới lượt mình & bấm vào ô viền xanh hợp lệ
+    if (pubState.status === 'playing' && pubState.turn?.phase === 'STEP5_MOVE' && pubState.turn.playerId === myPlayerId) {
+      const me = pubState.players?.[myPlayerId];
+      const mp = calculateCurrentMp(pubState, graph);
+      const extraCost = pubState.blizzardRoundsLeft > 0 ? 1 : 0;
+      const { reachable } = getReachableHexes(graph, me.hexId, mp, {
+        extraCost,
+        flatCostOne: pubState.turn.flatCostOne
+      });
+      if (reachable.has(hexId)) {
+        try {
+          renderer.clearPathPreview();
+          await executeMove(currentRoom, pubState, graph, hexId);
+        } catch (error) {
+          alert(error?.message || 'Không thể thực hiện di chuyển. Hãy thử chọn ô bằng danh sách bên dưới.');
+        }
+        return;
+      }
+    }
+
+    // Mặc định chỉ hiển thị thông tin ô (không tự ý di chuyển!)
+    $('hexInfo').innerHTML = `
+      <strong>${meta.label}</strong> (${meta.passable ? meta.cost + ' MP' : 'Cấm đi'})<br/>
+      Mã ô: <code>${node.id}</code> | Cách Đích: <strong>${node.distToFinish === Infinity ? '—' : node.distToFinish + ' ô'}</strong>
+    `;
+  },
+  (hexId) => handleHexHover(hexId),
+  (hexId) => handleHexLeave(hexId)
+);
+
+// Bắt sự kiện chuyển sang Bước 5 mượt mà, phản hồi ngay lập tức
 document.addEventListener('click', async (event) => {
   const button = event.target.closest('#btnToStep5');
   if (!button) return;
@@ -86,49 +140,27 @@ document.addEventListener('click', async (event) => {
 
   button.dataset.processing = 'true';
   button.disabled = true;
-  button.textContent = 'Đang chuyển sang Bước 5...';
+  button.textContent = 'Đang sang Bước 5...';
 
-  const status = document.getElementById('step5Status');
-  const showStatus = (message, isError = false) => {
-    if (!status) return;
-    status.style.display = 'block';
-    status.style.background = isError ? '#ffebee' : '#e8f5e9';
-    status.style.color = isError ? '#b71c1c' : '#1b5e20';
-    status.textContent = message;
-  };
-
-  let timeoutId;
   try {
     if (!currentRoom || !pubState) {
       throw new Error('Chưa đồng bộ được dữ liệu phòng. Hãy tải lại phòng rồi thử lại.');
     }
     if (pubState.turn?.phase !== 'STEP4_ACTION') {
-      throw new Error(`Pha lượt hiện tại là "${pubState.turn?.phase || 'không xác định'}", không phải STEP4_ACTION. Hãy chờ đồng bộ hoặc tải lại phòng.`);
+      throw new Error(`Pha lượt hiện tại là "${pubState.turn?.phase || 'không xác định'}", không phải STEP4_ACTION.`);
     }
 
-    showStatus('Đang gửi yêu cầu chuyển bước tới máy chủ...');
-    const transitionPromise = proceedToStep5(currentRoom, pubState, graph);
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = window.setTimeout(() => {
-        const connectionHint = firebaseConnected === false
-          ? 'Firebase báo đang mất kết nối.'
-          : firebaseConnected === true
-            ? 'Firebase báo đang kết nối nhưng chưa xác nhận thao tác ghi.'
-            : 'Chưa nhận được trạng thái kết nối Firebase.';
-        reject(new Error(`Máy chủ chưa xác nhận chuyển bước sau 8 giây. ${connectionHint} Mở F12 → Console và tìm log [STEP4 → STEP5].`));
-      }, 8000);
-    });
-
-    await Promise.race([transitionPromise, timeoutPromise]);
-    showStatus('Đã gửi xong yêu cầu. Đang chờ đồng bộ trạng thái Bước 5...', false);
+    const newState = await proceedToStep5(currentRoom, pubState, graph);
+    if (newState) {
+      pubState = normalizePublicState(newState);
+      renderAll();
+    }
   } catch (error) {
     console.error('[STEP4 → STEP5] Không thể chuyển bước:', error);
     button.disabled = false;
     button.dataset.processing = 'false';
-    button.textContent = '▶ Thử chuyển sang Bước 5 lại';
-    showStatus(error?.message || 'Không thể chuyển sang Bước 5. Mở F12 → Console để xem chi tiết.', true);
-  } finally {
-    if (timeoutId) window.clearTimeout(timeoutId);
+    button.textContent = '▶ Sang Bước 5: Di chuyển';
+    alert(error?.message || 'Không thể chuyển sang Bước 5.');
   }
 });
 
@@ -440,21 +472,63 @@ function renderActionPanel() {
         return { id: hexId, node, cost: bestCost[hexId] };
       })
       .sort((a, b) => a.node.distToFinish - b.node.distToFinish || a.cost - b.cost);
+
+    const bestOption = moveOptions.length > 0 ? moveOptions[0] : null;
+    const currentDist = graph.nodes[me.hexId]?.distToFinish ?? 999;
+    const stationOptions = moveOptions.filter(o => o.node.terrain === 'station_sm' || o.node.terrain === 'station_big');
+
     html += `
-      <p style="margin:6px 0;"><strong>Bước 5 – Di chuyển:</strong> Bạn có <strong>${mp} MP</strong> và <strong>${moveOptions.length} ô có thể đến</strong>. Bấm ô viền xanh trên bản đồ để di chuyển.</p>
-      <details class="move-fallback">
-        <summary>Không bấm được ô trên bản đồ? Chọn đích tại đây (${moveOptions.length} ô)</summary>
+      <div class="step5-banner">
+        <div>
+          <span class="mp-badge">🏃 ${mp} MP</span>
+          <span style="font-size:0.8rem;color:#1b5e20;margin-left:6px;font-weight:600;">(${moveOptions.length} ô có thể đến)</span>
+        </div>
+        <small style="color:#5d4037;font-weight:600;">Cách Đích: <b>${currentDist === Infinity ? '—' : currentDist + ' ô'}</b></small>
+      </div>
+
+      <p style="margin:5px 0 8px;font-size:0.82rem;color:#3e2723;">
+        👉 <strong>Bấm trực tiếp vào ô viền xanh phát sáng</strong> trên bản đồ để đi, hoặc bấm chọn nhanh:
+      </p>
+
+      ${bestOption && bestOption.node.distToFinish < currentDist ? `
+        <button type="button" class="best-move-btn move-option-btn" data-hex-id="${bestOption.id}">
+          <span>⭐ <b>Tiến gần Đích nhất:</b> ${TERRAIN_META[bestOption.node.terrain]?.label || bestOption.id}</span>
+          <span>Tốn ${bestOption.cost} MP (cách ${bestOption.node.distToFinish} ô) ▶</span>
+        </button>
+      ` : ''}
+
+      ${stationOptions.length > 0 ? `
+        <div style="margin:6px 0 4px;font-size:0.8rem;font-weight:700;color:#e65100;">🎁 Trạm Rút Thẻ trong tầm đi:</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;">
+          ${stationOptions.map(st => `
+            <button type="button" class="station-move-btn move-option-btn" data-hex-id="${st.id}">
+              ${st.node.terrain === 'station_big' ? '🎁 Trạm +2 Thẻ' : '🎁 Trạm +1 Thẻ'} (${st.cost} MP)
+            </button>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <details class="move-fallback" ${moveOptions.length <= 6 ? 'open' : ''}>
+        <summary>📋 Toàn bộ điểm đến hợp lệ (${moveOptions.length} ô)</summary>
         <div class="move-option-list">
           ${moveOptions.length ? moveOptions.map(option => {
             const meta = TERRAIN_META[option.node.terrain];
+            const diff = currentDist - option.node.distToFinish;
+            const diffText = diff > 0 ? `tiến +${diff} ô` : (diff === 0 ? 'ngang cự ly' : `lùi ${Math.abs(diff)} ô`);
             return `<button type="button" class="move-option-btn" data-hex-id="${option.id}">
-              <strong>${meta.label}</strong>
-              <small>${option.id} · Chi phí đường đi: ${option.cost} MP · Cách đích: ${option.node.distToFinish} ô</small>
+              <div>
+                <strong>${meta?.label || option.node.terrain}</strong>
+                <small>${option.id} · Chi phí: <b>${option.cost} MP</b> (${diffText})</small>
+              </div>
+              <div style="text-align:right;">
+                <span class="badge" style="background:#e0e0e0;color:#333;font-size:0.72rem;">Đích: ${option.node.distToFinish}</span>
+              </div>
             </button>`;
-          }).join('') : '<p class="move-empty">Không tìm thấy ô hợp lệ để di chuyển. Hãy kiểm tra vị trí quân cờ và nhật ký lượt.</p>'}
+          }).join('') : '<p class="move-empty">Không có ô nào hợp lệ để di chuyển. Bạn có thể chọn Đứng yên.</p>'}
         </div>
       </details>
-      <div class="btn-row">
+
+      <div class="btn-row" style="margin-top:8px;">
         <button id="btnStayStill" class="btn-muted">Đứng yên (0 ô)</button>
         ${me.hiddenUses < 2 && me.cooldownHidden === 0 ? '<button id="btnUseHidden">👁️ Dùng Kỹ năng Ẩn</button>' : ''}
       </div>
@@ -525,9 +599,25 @@ function renderActionPanel() {
     }
   });
   document.querySelectorAll('.move-option-btn').forEach(btn => {
+    const targetHexId = btn.dataset.hexId;
+    btn.addEventListener('mouseenter', () => {
+      const me = pubState?.players?.[myPlayerId];
+      if (me?.hexId && targetHexId) {
+        const mp = calculateCurrentMp(pubState, graph);
+        const { prev } = getReachableHexes(graph, me.hexId, mp, {
+          extraCost: pubState.blizzardRoundsLeft > 0 ? 1 : 0,
+          flatCostOne: pubState.turn?.flatCostOne
+        });
+        const path = reconstructPath(prev, me.hexId, targetHexId);
+        renderer.showPathPreview([me.hexId, ...path]);
+      }
+    });
+    btn.addEventListener('mouseleave', () => {
+      renderer.clearPathPreview();
+    });
     btn.addEventListener('click', async () => {
-      const targetHexId = btn.dataset.hexId;
       try {
+        renderer.clearPathPreview();
         await executeMove(currentRoom, pubState, graph, targetHexId);
       } catch (error) {
         alert(error?.message || 'Không thể di chuyển tới ô đã chọn.');
