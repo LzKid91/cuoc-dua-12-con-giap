@@ -1,5 +1,6 @@
 import {
   ZODIACS, SEASON_BONUS_ZODIACS, START_HEXES, TERRAIN_META,
+  ALL_CHECKPOINTS, SEASON_ORDER,
   getHexDistance, getReachableHexes, reconstructPath,
   getChallengeZone, computePushBackHex, computeAdvanceHex, computeIceSlide
 } from './mapData.js';
@@ -27,6 +28,9 @@ function cloneState(s) {
   for (const p of Object.values(c.players || {})) {
     p.claimedStations = toArray(p.claimedStations);
     p.pendingSelf = toArray(p.pendingSelf);
+    // Phòng cũ từ v3.0 được mở khóa checkpoint để không làm hỏng ván đang diễn ra.
+    if (!Number.isInteger(p.gateProgress)) p.gateProgress = c.mapVersion === '3.1' ? 0 : 12;
+    p.gateProgress = Math.max(0, Math.min(12, p.gateProgress));
     p.statusFlags = p.statusFlags || {};
   }
   return c;
@@ -35,6 +39,120 @@ function cloneState(s) {
 function addLog(state, msg) {
   state.logs.unshift(`[V${state.round}] ${msg}`);
   if (state.logs.length > 35) state.logs.length = 35;
+}
+
+function seasonRankForPlayer(graph, hexId, gateProgress = 0) {
+  const node = graph.nodes[hexId];
+  if (!node) return -1;
+  const directRank = SEASON_ORDER.indexOf(node.season);
+  if (directRank >= 0) return directRank;
+  if (node.season === 'BRIDGE' && node.endpoints?.length === 2) {
+    const ranks = node.endpoints
+      .map(id => SEASON_ORDER.indexOf(graph.nodes[id]?.season))
+      .filter(rank => rank >= 0)
+      .sort((a, b) => a - b);
+    if (ranks.length === 2) return gateProgress >= (ranks[1] * 3) ? ranks[1] : ranks[0];
+  }
+  return -1;
+}
+
+function planSkillRelocation(state, graph, player, targetHexId) {
+  const fromHexId = player?.hexId;
+  const fromNode = graph.nodes[fromHexId];
+  const toNode = graph.nodes[targetHexId];
+  if (!player || !fromNode || !toNode || !TERRAIN_META[toNode.terrain]?.passable) {
+    return { allowed: false, reason: 'Vị trí dịch chuyển không hợp lệ.' };
+  }
+
+  let nextProgress = Math.max(0, Math.min(12, Number(player.gateProgress) || 0));
+  let skippedCheckpoint = null;
+  let reachedCheckpoint = null;
+  const fromRank = seasonRankForPlayer(graph, fromHexId, nextProgress);
+  const toRank = seasonRankForPlayer(graph, targetHexId, nextProgress);
+
+  // Dịch chuyển tiến sang mùa sau chỉ được bỏ qua tối đa 1 cổng còn thiếu.
+  if (toRank > fromRank && fromRank >= 0) {
+    const required = toRank * 3;
+    const missing = Math.max(0, required - nextProgress);
+    if (missing > 1) {
+      return {
+        allowed: false,
+        reason: `Không thể dịch chuyển tới ${SEASON_ORDER[toRank]}: còn phải hoàn thành ${missing} checkpoint trước đó (mỗi lần dịch chuyển chỉ bỏ qua tối đa 1).`
+      };
+    }
+    if (missing === 1) {
+      skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+      nextProgress += 1;
+    }
+  } else if (
+    toRank === fromRank &&
+    fromRank >= 0 &&
+    toNode.distToFinish < fromNode.distToFinish &&
+    nextProgress < (fromRank + 1) * 3 &&
+    toNode.checkpointIndex !== nextProgress
+  ) {
+    // Dịch chuyển tiến trong cùng mùa có thể bỏ qua đúng 1 checkpoint kế tiếp.
+    skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+    nextProgress += 1;
+  }
+
+  // Đáp xuống đúng checkpoint kế tiếp vẫn được ghi nhận như chạm cổng,
+  // không tính là một checkpoint bị bỏ qua.
+  if (toNode.checkpointIndex === nextProgress) {
+    reachedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+    nextProgress += 1;
+  }
+
+  return { allowed: true, nextProgress, skippedCheckpoint, reachedCheckpoint };
+}
+
+function applySkillRelocation(state, graph, player, targetHexId, reason = 'Dịch chuyển') {
+  const plan = planSkillRelocation(state, graph, player, targetHexId);
+  if (!plan.allowed) {
+    addLog(state, `⛔ ${reason} của ${player?.zodiac || 'người chơi'} không thể thực hiện: ${plan.reason}`);
+    return false;
+  }
+  player.hexId = targetHexId;
+  player.gateProgress = plan.nextProgress;
+  if (plan.skippedCheckpoint) {
+    addLog(state, `🌀 ${player.zodiac} dùng ${reason}, bỏ qua 1 checkpoint: ${plan.skippedCheckpoint.name} (${player.gateProgress}/12).`);
+  }
+  if (plan.reachedCheckpoint) {
+    addLog(state, `🏁 ${player.zodiac} chạm ${plan.reachedCheckpoint.name}! Tiến độ ${player.gateProgress}/12.`);
+  }
+  return true;
+}
+
+function applySkillSwap(state, graph, player, target, reason = 'Hoán đổi') {
+  if (!player || !target) return false;
+  const playerPlan = planSkillRelocation(state, graph, player, target.hexId);
+  const targetPlan = planSkillRelocation(state, graph, target, player.hexId);
+  if (!playerPlan.allowed || !targetPlan.allowed) {
+    const failed = !playerPlan.allowed ? playerPlan : targetPlan;
+    addLog(state, `⛔ ${reason} không thể thực hiện: ${failed.reason}`);
+    return false;
+  }
+
+  const playerHex = player.hexId;
+  player.hexId = target.hexId;
+  target.hexId = playerHex;
+  player.gateProgress = playerPlan.nextProgress;
+  target.gateProgress = targetPlan.nextProgress;
+
+  for (const [moved, plan] of [[player, playerPlan], [target, targetPlan]]) {
+    if (plan.skippedCheckpoint) {
+      addLog(state, `🌀 ${moved.zodiac} dùng ${reason}, bỏ qua 1 checkpoint: ${plan.skippedCheckpoint.name} (${moved.gateProgress}/12).`);
+    }
+    if (plan.reachedCheckpoint) {
+      addLog(state, `🏁 ${moved.zodiac} chạm ${plan.reachedCheckpoint.name}! Tiến độ ${moved.gateProgress}/12.`);
+    }
+  }
+  return true;
+}
+
+function applySkillAdvance(state, graph, player, steps, reason = 'Kỹ năng tiến bước') {
+  const targetHexId = computeAdvanceHex(graph, player.hexId, steps);
+  return applySkillRelocation(state, graph, player, targetHexId, reason);
 }
 
 function getRankings(state, graph) {
@@ -135,15 +253,15 @@ async function applyDamage(roomCode, state, graph, playerId, reason) {
 }
 
 function placeTrap(state, hexId, type, ownerId) {
-  // Mỗi cầu chỉ chứa tối đa 1 token bẫy
+  // Cầu Dài là tuyến an toàn, không thể đặt bẫy.
+  if (hexId.startsWith('BRIDGE:') && hexId.endsWith('_L')) return false;
+  // Cầu Ngắn chỉ chứa tối đa 1 token bẫy.
   if (hexId.startsWith('BRIDGE:')) {
     state.traps = state.traps.filter(t => t.hexId !== hexId);
   }
   state.traps.push({ id: 'T_' + Date.now() + Math.random().toString(36).slice(2, 5), hexId, type, ownerId });
-  // Tối đa 4 token bẫy trên toàn bàn
-  while (state.traps.length > 4) {
-    state.traps.shift();
-  }
+  while (state.traps.length > 4) state.traps.shift();
+  return true;
 }
 
 function initNewTurn(state) {
@@ -218,6 +336,8 @@ export async function startGame(roomCode, rawState) {
   state.lastEvent = null;
   state.winnerId = null;
   state.combat = null;
+  state.mapVersion = '3.1';
+  for (const p of Object.values(state.players)) p.gateProgress = 0;
   state.callout = null;
 
   // Tung xúc xắc sắp thứ tự lượt
