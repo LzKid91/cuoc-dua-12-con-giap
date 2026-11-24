@@ -88,31 +88,47 @@ document.addEventListener('click', async (event) => {
   button.disabled = true;
   button.textContent = 'Đang chuyển sang Bước 5...';
 
+  const status = document.getElementById('step5Status');
+  const showStatus = (message, isError = false) => {
+    if (!status) return;
+    status.style.display = 'block';
+    status.style.background = isError ? '#ffebee' : '#e8f5e9';
+    status.style.color = isError ? '#b71c1c' : '#1b5e20';
+    status.textContent = message;
+  };
+
   let timeoutId;
   try {
     if (!currentRoom || !pubState) {
-      throw new Error('Chưa đồng bộ được dữ liệu phòng. Hãy tải lại trang rồi thử lại.');
+      throw new Error('Chưa đồng bộ được dữ liệu phòng. Hãy tải lại phòng rồi thử lại.');
     }
+    if (pubState.turn?.phase !== 'STEP4_ACTION') {
+      throw new Error(`Pha lượt hiện tại là "${pubState.turn?.phase || 'không xác định'}", không phải STEP4_ACTION. Hãy chờ đồng bộ hoặc tải lại phòng.`);
+    }
+
+    showStatus('Đang gửi yêu cầu chuyển bước tới máy chủ...');
     const transitionPromise = proceedToStep5(currentRoom, pubState, graph);
     const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
+      timeoutId = window.setTimeout(() => {
         const connectionHint = firebaseConnected === false
-          ? 'Firebase Realtime Database hiện đang mất kết nối.'
+          ? 'Firebase báo đang mất kết nối.'
           : firebaseConnected === true
-            ? 'Trình duyệt đang kết nối Firebase nhưng máy chủ chưa xác nhận bản ghi.'
-            : 'Chưa xác định được trạng thái kết nối Firebase.';
-        reject(new Error(`Quá thời gian chờ 12 giây khi lưu Bước 5. ${connectionHint} Mở F12 → Console để xem log [STEP4 → STEP5].`));
-      }, 12000);
+            ? 'Firebase báo đang kết nối nhưng chưa xác nhận thao tác ghi.'
+            : 'Chưa nhận được trạng thái kết nối Firebase.';
+        reject(new Error(`Máy chủ chưa xác nhận chuyển bước sau 8 giây. ${connectionHint} Mở F12 → Console và tìm log [STEP4 → STEP5].`));
+      }, 8000);
     });
+
     await Promise.race([transitionPromise, timeoutPromise]);
+    showStatus('Đã gửi xong yêu cầu. Đang chờ đồng bộ trạng thái Bước 5...', false);
   } catch (error) {
     console.error('[STEP4 → STEP5] Không thể chuyển bước:', error);
     button.disabled = false;
     button.dataset.processing = 'false';
-    button.textContent = '▶ Sang Bước 5: Di chuyển';
-    alert(error?.message || 'Không thể chuyển sang Bước 5. Mở Console (F12) để xem chi tiết.');
+    button.textContent = '▶ Thử chuyển sang Bước 5 lại';
+    showStatus(error?.message || 'Không thể chuyển sang Bước 5. Mở F12 → Console để xem chi tiết.', true);
   } finally {
-    if (timeoutId) clearTimeout(timeoutId);
+    if (timeoutId) window.clearTimeout(timeoutId);
   }
 });
 
@@ -408,6 +424,7 @@ function renderActionPanel() {
           <button type="button" id="btnToStep5" class="btn-green">▶ Sang Bước 5: Di chuyển</button>
           ${me.hiddenUses < 2 && me.cooldownHidden === 0 ? '<button id="btnUseHidden">👁️ Dùng Kỹ năng Ẩn</button>' : ''}
         </div>
+        <p id="step5Status" role="status" aria-live="polite" style="display:none;margin-top:8px;padding:7px 9px;border-radius:6px;font-size:0.8rem;line-height:1.35;"></p>
       `;
     }
   } else if (turn.phase === 'STEP5_MOVE') {
