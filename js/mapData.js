@@ -11,30 +11,30 @@ export const SEASON_BONUS_ZODIACS = {
 };
 
 export const SEASONS = {
-  XUAN: { name: 'Mùa Xuân', cx: -9.7, cy: -9.0, plain: 'xuan_plain' },
-  HA:   { name: 'Mùa Hạ',   cx: -9.7, cy:  9.0, plain: 'ha_plain' },
-  THU:  { name: 'Mùa Thu',  cx:  9.7, cy:  9.0, plain: 'thu_plain' },
-  DONG: { name: 'Mùa Đông', cx:  9.7, cy: -9.0, plain: 'dong_plain' }
+  XUAN: { name: 'Mùa Xuân', cx: -11.5, cy: -9.0, plain: 'xuan_plain' },
+  HA:   { name: 'Mùa Hạ',   cx: -11.5, cy:  9.0, plain: 'ha_plain' },
+  THU:  { name: 'Mùa Thu',  cx:  11.5, cy:  9.0, plain: 'thu_plain' },
+  DONG: { name: 'Mùa Đông', cx:  11.5, cy: -9.0, plain: 'dong_plain' }
 };
 
 export const START_HEXES = ['XUAN:0,-4', 'XUAN:1,-4', 'XUAN:2,-4', 'XUAN:3,-4', 'XUAN:4,-4'];
 
 export const TERRAIN_META = {
-  xuan_plain:   { label: 'Đồng bằng Xuân',    cost: 1,  passable: true,  fill: '#DCF0C8', stroke: '#8FB573' },
-  ha_plain:     { label: 'Đồng bằng Hạ',      cost: 1,  passable: true,  fill: '#FCE3C2', stroke: '#D49A5E' },
-  thu_plain:    { label: 'Đường mòn Thu',     cost: 1,  passable: true,  fill: '#F7DFC4', stroke: '#C99563' },
-  dong_plain:   { label: 'Đồng bằng Đông',    cost: 1,  passable: true,  fill: '#E3EEF7', stroke: '#8FAEC7' },
-  start:        { label: 'Ô Xuất Phát',       cost: 1,  passable: true,  fill: '#A8DF8E', stroke: '#2E7D32', text: 'XP' },
-  river:        { label: 'Sông Suối',         cost: 99, passable: false, fill: '#64B5F6', stroke: '#1E88E5', text: '≈' },
-  lava:         { label: 'Ô Lửa',             cost: 1,  passable: true,  fill: '#EF6C4D', stroke: '#B71C1C', text: '▲' },
-  forest:       { label: 'Rừng Phong',        cost: 2,  passable: true,  fill: '#C46D3B', stroke: '#7C3A16', text: '2' },
-  snow:         { label: 'Tuyết Dày',         cost: 3,  passable: true,  fill: '#B7CEE3', stroke: '#547A9E', text: '3' },
-  ice:          { label: 'Băng Trơn',         cost: 1,  passable: true,  fill: '#80DEEA', stroke: '#00838F', text: '»' },
-  station_big:  { label: 'Trạm +2 Thẻ',       cost: 1,  passable: true,  fill: '#FFD54F', stroke: '#E65100', text: '+2' },
-  station_sm:   { label: 'Trạm +1 Thẻ',       cost: 1,  passable: true,  fill: '#FFE082', stroke: '#EF6C00', text: '+1' },
-  bridge_short: { label: 'Cầu Ngắn (Hiểm)',   cost: 1,  passable: true,  fill: '#D88A52', stroke: '#7A2E0E', text: 'CẦU' },
-  bridge_long:  { label: 'Cầu Dài (An toàn)', cost: 1,  passable: true,  fill: '#B89B72', stroke: '#5D4037', text: 'CẦU' },
-  finish:       { label: 'Thiên Đình (Đích)', cost: 1,  passable: true,  fill: '#FFD700', stroke: '#B8860B', text: '★' }
+  xuan_plain:   { label: 'Đồng bằng Xuân',    cost: 1,  passable: true,  fill: '#DFF0D8', stroke: '#A3D9A5' },
+  ha_plain:     { label: 'Đồng bằng Hạ',      cost: 1,  passable: true,  fill: '#FDEBD0', stroke: '#F5CBA7' },
+  thu_plain:    { label: 'Đường mòn Thu',     cost: 1,  passable: true,  fill: '#F5E6CC', stroke: '#E59866' },
+  dong_plain:   { label: 'Đồng bằng Đông',    cost: 1,  passable: true,  fill: '#E8F4F8', stroke: '#AED6F1' },
+  start:        { label: 'Ô Xuất Phát',       cost: 1,  passable: true,  fill: '#FFF9C4', stroke: '#FBC02D', text: 'XP' },
+  river:        { label: 'Sông Suối',         cost: 99, passable: false, fill: '#42A5F5', stroke: '#1E88E5', text: '≈' },
+  lava:         { label: 'Ô Lửa',             cost: 1,  passable: true,  fill: '#FF6E40', stroke: '#D84315', text: '▲' },
+  forest:       { label: 'Rừng Phong',        cost: 2,  passable: true,  fill: '#8D4925', stroke: '#5D4037', text: '2' },
+  snow:         { label: 'Tuyết Dày',         cost: 3,  passable: true,  fill: '#CFD8DC', stroke: '#90A4AE', text: '3' },
+  ice:          { label: 'Băng Trơn',         cost: 1,  passable: true,  fill: '#80DEEA', stroke: '#00ACC1', text: '»' },
+  station_big:  { label: 'Trạm +2 Thẻ',       cost: 1,  passable: true,  fill: '#FFC107', stroke: '#FF8F00', text: '+2' },
+  station_sm:   { label: 'Trạm +1 Thẻ',       cost: 1,  passable: true,  fill: '#FFE082', stroke: '#FFA000', text: '+1' },
+  bridge_short: { label: 'Cầu Ngắn (Hiểm)',   cost: 1,  passable: true,  fill: '#BCAAA4', stroke: '#6D4C41', text: 'CẦU' },
+  bridge_long:  { label: 'Cầu Dài (An toàn)', cost: 1,  passable: true,  fill: '#A1887F', stroke: '#4E342E', text: 'CẦU' },
+  finish:       { label: 'Thiên Đình (Đích)', cost: 1,  passable: true,  fill: '#FFD54F', stroke: '#B8860B', text: '★' }
 };
 
 const SQRT3 = Math.sqrt(3);
@@ -112,9 +112,14 @@ export function buildBoardGraph() {
 
   for (const br of bridges) {
     const na = nodes[br.a], nb = nodes[br.b];
+    let bx = (na.x + nb.x) / 2;
+    let by = (na.y + nb.y) / 2;
+    if (br.id === 'BRIDGE:HT_L') by = -14.1;
+    if (br.id === 'BRIDGE:XH_L') bx = -13.72;
+    if (br.id === 'BRIDGE:TD_L') bx = 13.72;
     nodes[br.id] = {
       id: br.id, season: br.season, q: null, r: null,
-      x: (na.x + nb.x) / 2, y: (na.y + nb.y) / 2,
+      x: bx, y: by,
       terrain: br.terrain, neighbors: [br.a, br.b],
       endpoints: [br.a, br.b], distToFinish: Infinity
     };
