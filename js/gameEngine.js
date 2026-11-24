@@ -8,7 +8,7 @@ import {
   createShuffledSupportDeck, createShuffledEventDeck, shuffle
 } from './cardsData.js';
 import {
-  toArray, savePublicState, getPrivateData, savePrivateData
+  toArray, savePublicState, savePublicStatePatch, getPrivateData, savePrivateData
 } from './roomSync.js';
 
 function rollDie() {
@@ -1023,7 +1023,21 @@ export async function proceedToStep5(roomCode, rawState, graph) {
   state.turn.phase = 'STEP5_MOVE';
   addLog(state, `➡️ ${p.zodiac} đã chuyển sang Bước 5 – Di chuyển (${calculateCurrentMp(state, graph)} MP).`);
 
-  await savePublicState(roomCode, state);
+  console.info('[STEP4 → STEP5] Prepared transition; writing turn/player patch to Firebase.', {
+    roomCode,
+    playerId: p.id,
+    phase: state.turn.phase,
+    mp: calculateCurrentMp(state, graph)
+  });
+  await savePublicStatePatch(roomCode, {
+    turn: state.turn,
+    logs: state.logs,
+    [`players/${p.id}`]: p
+  });
+  console.info('[STEP4 → STEP5] Firebase acknowledged the STEP5_MOVE transition.', {
+    roomCode,
+    playerId: p.id
+  });
 }
 
 export async function executeMove(roomCode, rawState, graph, targetHexId) {
