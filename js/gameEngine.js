@@ -595,7 +595,27 @@ export async function proceedToStep4(roomCode, rawState, graph) {
       if (owner.cooldownTD > 0) {
         addLog(state, `⏳ ${owner.zodiac} đang hồi chiêu Thiên/Địa — không kích hoạt.`);
       } else {
-        await triggerZodiacClockSkill(roomCode, state, graph, owner, isThien);
+        const info = isThien ? ZODIAC_DATA[owner.zodiac].thien : ZODIAC_DATA[owner.zodiac].dia;
+        if (owner.isBot) {
+          // Bot tự quyết: nếu chiêu Tự thân mà không phải lượt của Bot, lưu lại cho vòng sau
+          if (info.type === 'Tự thân' && state.turn.playerId !== owner.id) {
+            owner.savedSkill = { isThien, zodiac: owner.zodiac, name: info.name, type: info.type, desc: info.desc };
+            addLog(state, `💾 ${owner.zodiac} (Bot) quyết định GIỮ LẠI kỹ năng ${isThien ? 'Thiên' : 'Địa'} [${info.name}] cho vòng sau!`);
+          } else {
+            await triggerZodiacClockSkill(roomCode, state, graph, owner, isThien);
+          }
+        } else {
+          // Người chơi được lựa chọn: Sử dụng luôn hoặc Giữ lại cho vòng sau
+          state.pendingSkillChoice = {
+            playerId: owner.id,
+            zodiac: owner.zodiac,
+            isThien,
+            name: info.name,
+            type: info.type,
+            desc: info.desc
+          };
+          addLog(state, `⏰ Vào giờ ${owner.zodiac} (${isThien ? 'Thiên' : 'Địa'} – ${info.name})! ${owner.zodiac} có thể chọn DÙNG LUÔN hoặc GIỮ LẠI cho vòng sau.`);
+        }
       }
     } else {
       // Giờ Trống
@@ -610,6 +630,112 @@ export async function proceedToStep4(roomCode, rawState, graph) {
   }
 
   await savePublicState(roomCode, state);
+}
+
+// Giải quyết lựa chọn của con giáp khi vào giờ: Dùng luôn hoặc Giữ lại cho vòng sau
+export async function resolveSkillChoice(roomCode, rawState, graph, choice) {
+  const state = cloneState(rawState);
+  if (!state.pendingSkillChoice) return;
+  const sc = state.pendingSkillChoice;
+  const owner = state.players[sc.playerId];
+  if (!owner) return;
+
+  const isThien = sc.isThien;
+  const z = sc.zodiac;
+  const name = sc.name;
+
+  if (choice === 'USE') {
+    delete state.pendingSkillChoice;
+    addLog(state, `⚡ ${owner.zodiac} (${owner.name}) chọn SỬ DỤNG LUÔN kỹ năng [${name}]!`);
+    await triggerZodiacClockSkill(roomCode, state, graph, owner, isThien);
+  } else if (choice === 'SAVE') {
+    owner.savedSkill = { isThien, zodiac: z, name: sc.name, type: sc.type, desc: sc.desc };
+    delete state.pendingSkillChoice;
+    addLog(state, `💾 ${owner.zodiac} (${owner.name}) đã GIỮ LẠI kỹ năng ${isThien ? 'Thiên' : 'Địa'} [${name}] cho vòng sau (không cần quay vào giờ nữa)!`);
+  } else if (choice === 'KEEP_OLD') {
+    delete state.pendingSkillChoice;
+    addLog(state, `👌 ${owner.zodiac} giữ nguyên kỹ năng đang lưu trữ [${owner.savedSkill?.name}].`);
+  }
+
+  await savePublicState(roomCode, state);
+}
+
+// Kích hoạt kỹ năng Thiên/Địa đã lưu trữ từ trước
+export async function useSavedSkill(roomCode, rawState, graph, playerId) {
+  const state = cloneState(rawState);
+  const p = state.players[playerId];
+  if (!p) throw new Error('Không tìm thấy người chơi!');
+  if (!p.savedSkill) throw new Error('Bạn không có kỹ năng nào đang được giữ!');
+  if (p.cooldownTD > 0) throw new Error('Kỹ năng Thiên/Địa đang hồi chiêu!');
+
+  const saved = p.savedSkill;
+  delete p.savedSkill;
+
+  addLog(state, `✨ ${p.zodiac} (${p.name}) KÍCH HOẠT KỸ NĂNG ĐÃ GIỮ: ${saved.isThien ? 'Thiên' : 'Địa'} [${saved.name}]!`);
+
+  // Nếu đang ở Bước 5 của chính mình và là kỹ năng Tự thân, áp dụng trực tiếp hiệu ứng
+  const isMyStep5 = state.turn && state.turn.playerId === playerId && state.turn.phase === 'STEP5_MOVE';
+  if (isMyStep5 && saved.type === 'Tự thân') {
+    applySelfSkillEffectInStep5(state, graph, p, saved.zodiac, saved.isThien);
+    p.cooldownTD = 1;
+  } else {
+    await triggerZodiacClockSkill(roomCode, state, graph, p, saved.isThien);
+  }
+
+  await savePublicState(roomCode, state);
+}
+
+function applySelfSkillEffectInStep5(state, graph, p, zodiac, isThien) {
+  if (zodiac === 'Sửu' && isThien) {
+    const rankings = getRankings(state, graph);
+    const isLast = rankings.lastPlace.includes(p.id);
+    const leaderDist = graph.nodes[rankings.leaders[0]]?.distToFinish ?? 0;
+    const myDist = graph.nodes[p.hexId]?.distToFinish ?? 0;
+    const bonus = (isLast || (myDist - leaderDist >= 4)) ? 3 : 1;
+    state.turn.bonusMp += bonus;
+    addLog(state, `🐂 Sửu kích hoạt Thiên Mệnh (+${bonus} MP)!`);
+  } else if (zodiac === 'Ngọ' && isThien) {
+    if (state.turn.isMovePair) {
+      state.turn.bonusMp += 4;
+      addLog(state, `🐎 Ngọ kích hoạt Thiên Mã (đôi xúc xắc → +4 MP)!`);
+    } else {
+      addLog(state, `🐎 Ngọ dùng Thiên Mã nhưng nhóm Di chuyển không phải xúc xắc đôi.`);
+    }
+  } else if (zodiac === 'Ngọ' && !isThien) {
+    state.turn.flatCostOne = true;
+    state.turn.ignoreThuLock = true;
+    state.turn.ignoreLava = true;
+    state.turn.ignoreTraps = true;
+    addLog(state, `🐎 Ngọ kích hoạt Nước Đại (mọi ô 1 MP, xuyên bẫy)!`);
+  } else if (zodiac === 'Tý' && !isThien) {
+    const others = Object.values(state.players).filter(o => o.id !== p.id);
+    const myDist = graph.nodes[p.hexId]?.distToFinish ?? 999;
+    const ahead = others.filter(o => (graph.nodes[o.hexId]?.distToFinish ?? 999) < myDist)
+      .sort((a, b) => getHexDistance(graph, p.hexId, a.hexId) - getHexDistance(graph, p.hexId, b.hexId));
+    if (ahead[0] && getHexDistance(graph, p.hexId, ahead[0].hexId) <= 5) {
+      const target = ahead[0];
+      const jumpHex = computePushBackHex(graph, target.hexId, 1, false);
+      p.hexId = jumpHex;
+      addLog(state, `🐀 Tý kích hoạt Đào Hang nhảy tới sau lưng ${target.zodiac}!`);
+    }
+  } else if (zodiac === 'Mão' && !isThien) {
+    state.turn.bonusMp += 2;
+    addLog(state, `🐇 Mão kích hoạt Nhảy Bật (+2 MP)!`);
+  } else if (zodiac === 'Dần' && !isThien) {
+    state.turn.danHuntActive = true;
+    addLog(state, `🐅 Dần kích hoạt Vồ Mồi (lao tới đối thủ trong 2 ô với +2 điểm)!`);
+  } else if (zodiac === 'Tỵ' && isThien) {
+    delete p.statusFlags.poisoned;
+    addLog(state, `🐍 Tỵ Lột Xác xóa bỏ độc và hiệu ứng bất lợi!`);
+  } else if (zodiac === 'Hợi' && !isThien) {
+    p.pendingSelf = toArray(p.pendingSelf);
+    if (!p.pendingSelf.includes('Hợi_DIA')) p.pendingSelf.push('Hợi_DIA');
+    addLog(state, `🐷 Hợi kích hoạt An Nhàn (hồi 1❤️ nếu đi ≤ 2 ô hoặc đứng yên).`);
+  } else if (zodiac === 'Mùi' && !isThien) {
+    p.pendingSelf = toArray(p.pendingSelf);
+    if (!p.pendingSelf.includes('Mùi_DIA')) p.pendingSelf.push('Mùi_DIA');
+    addLog(state, `🐑 Mùi kích hoạt Bầy Đàn (rút 1 Thẻ nếu dừng cạnh người khác).`);
+  }
 }
 
 export async function chooseLinhKhi(roomCode, rawState, choice) {
@@ -647,11 +773,17 @@ export async function playSupportCard(roomCode, rawState, graph, playerId, cardI
   const p = state.players[playerId];
   const others = Object.values(state.players).filter(o => o.id !== playerId && !o.statusFlags.immuneUntilNextTurn);
 
-  if (def.timing === 'STEP4' && turn.phase !== 'STEP4_ACTION') {
-    throw new Error(`Thẻ ${def.name} chỉ dùng ở Bước 4!`);
-  }
-  if (def.timing === 'STEP5' && turn.phase !== 'STEP5_MOVE') {
-    throw new Error(`Thẻ ${def.name} chỉ dùng ở Bước 5 (trước khi di chuyển)!`);
+  const isActionCard = ['THAN_HANH', 'GIO_MUA', 'HOI_SINH', 'DICH_CHUYEN', 'CAM_BAY', 'KHOA_CHIEU', 'DOAT_BAO'].includes(cardId)
+    || ['STEP4', 'STEP5', 'ACTION'].includes(def.timing);
+
+  if (isActionCard) {
+    if (turn.phase !== 'STEP4_ACTION' && turn.phase !== 'STEP5_MOVE') {
+      throw new Error(`Thẻ ${def.name} chỉ dùng trong lượt của bạn ở Bước 4 hoặc Bước 5!`);
+    }
+  } else if (def.timing === 'STEP2' && turn.phase !== 'STEP2_SPLIT') {
+    throw new Error(`Thẻ ${def.name} chỉ dùng ở Bước 2!`);
+  } else if (def.timing === 'STEP3' && turn.phase !== 'STEP3_CLOCK') {
+    throw new Error(`Thẻ ${def.name} chỉ dùng ở Bước 3!`);
   }
 
   let msg = `🃏 ${p.zodiac} dùng ${def.name}: `;
@@ -968,6 +1100,9 @@ export async function proceedToStep5(roomCode, rawState, graph) {
   }
   if (state.turn.linhKhiPending) {
     throw new Error('Hãy chọn một hiệu ứng Linh Khí Thời Gian trước khi sang Bước 5!');
+  }
+  if (state.pendingSkillChoice) {
+    throw new Error('Chờ quyết định Dùng luôn hay Giữ lại kỹ năng giờ con giáp!');
   }
 
   const p = state.players[state.turn.playerId];
@@ -1456,6 +1591,15 @@ export async function runBotStep(roomCode, rawState, graph) {
     await pickStartHex(roomCode, state, pid, pick);
     return;
   }
+  if (state.pendingSkillChoice) {
+    const sc = state.pendingSkillChoice;
+    if (state.players[sc.playerId]?.isBot) {
+      const choice = (sc.type === 'Tự thân' && state.turn.playerId !== sc.playerId) ? 'SAVE' : 'USE';
+      await resolveSkillChoice(roomCode, state, graph, choice);
+      return;
+    }
+  }
+
   if (state.status !== 'playing' || !state.turn) return;
   const pid = state.turn.playerId;
   const p = state.players[pid];
@@ -1473,6 +1617,9 @@ export async function runBotStep(roomCode, rawState, graph) {
     if (state.turn.linhKhiPending) {
       await chooseLinhKhi(roomCode, state, 'MP');
     } else {
+      if (p.savedSkill && p.cooldownTD === 0) {
+        await useSavedSkill(roomCode, state, graph, pid);
+      }
       await proceedToStep5(roomCode, state, graph);
     }
   } else if (state.turn.phase === 'STEP5_MOVE') {

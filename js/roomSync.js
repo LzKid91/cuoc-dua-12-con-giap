@@ -45,6 +45,7 @@ function makePlayerObj(id, name, zodiac, color, isBot = false) {
     hiddenUses: 0,
     hiddenRevealed: false,
     revealedVariant: null,
+    savedSkill: null,
     handCount: 0,
     claimedStations: [],
     pendingSelf: [],

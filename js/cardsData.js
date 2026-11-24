@@ -1,16 +1,16 @@
 export const SUPPORT_CARD_DEFS = {
-  DOI_VAN:        { id: 'DOI_VAN',        name: 'Đổi Vận',          count: 14, timing: 'STEP2',    desc: 'Tung lại tối đa 2 viên xúc xắc bất kỳ trong 4 viên vừa gieo.' },
-  BE_KIM:         { id: 'BE_KIM',         name: 'Bẻ Kim Đồng Hồ',   count: 9,  timing: 'STEP3',    desc: 'Đẩy hoặc kéo kim đồng hồ 1 vạch (không kích hoạt kỹ năng/sự kiện vạch mới).' },
-  THAN_HANH:      { id: 'THAN_HANH',      name: 'Thần Hành Phù',    count: 14, timing: 'STEP5',    desc: 'Cộng +3 MP vào tổng Điểm Di Chuyển trong lượt này.' },
-  VU_KHI:         { id: 'VU_KHI',         name: 'Vũ Khí Bí Mật',    count: 8,  timing: 'COMBAT',   desc: 'Cộng +3 điểm vào tổng xúc xắc chiến đấu của bản thân.' },
-  HO_THAN:        { id: 'HO_THAN',        name: 'Hộ Thân Phù',      count: 8,  timing: 'REACTION', desc: 'Chặn 1 lần mất Mệnh Bài từ Giao chiến hoặc Bẫy (không chặn Call Out, cấm ở Mùa Hạ).' },
-  SUONG_MU:       { id: 'SUONG_MU',       name: 'Sương Mù Che Mắt', count: 5,  timing: 'CALLOUT',  desc: 'Hủy lượt Call Out của đối thủ; Kỹ năng Ẩn vẫn kích hoạt và không bị lộ.' },
-  GIO_MUA:        { id: 'GIO_MUA',        name: 'Gió Mùa',          count: 7,  timing: 'STEP5',    desc: 'Lượt này mọi địa hình hợp lệ chỉ tốn 1 MP và bỏ qua khóa chân Mùa Thu / Ô Lửa.' },
-  DICH_CHUYEN:    { id: 'DICH_CHUYEN',    name: 'Dịch Chuyển Ngắn', count: 8,  timing: 'STEP4',    desc: 'Hoán đổi vị trí với người chơi đứng cách tối đa 3 ô (không kích hoạt Giao chiến).' },
-  CAM_BAY:        { id: 'CAM_BAY',        name: 'Cạm Bẫy Gai',      count: 7,  timing: 'STEP4',    desc: 'Đặt 1 token Bẫy tại ô đang đứng; người tiếp theo đi qua phải dừng lại.' },
-  KHOA_CHIEU:     { id: 'KHOA_CHIEU',     name: 'Khóa Chiêu',       count: 4,  timing: 'STEP4',    desc: 'Chỉ định 1 đối thủ; kỹ năng Thiên/Địa của họ bị khóa hồi chiêu thêm 1 vòng.' },
-  DOAT_BAO:       { id: 'DOAT_BAO',       name: 'Đoạt Bảo',         count: 4,  timing: 'STEP4',    desc: 'Cướp ngẫu nhiên 1 Thẻ Hỗ Trợ từ người chơi đang đứng cùng Mùa.' },
-  HOI_SINH:       { id: 'HOI_SINH',       name: 'Hồi Sinh Thảo',    count: 8,  timing: 'STEP4',    desc: 'Hồi phục ngay 1 Mệnh Bài (tối đa 3; Mùa Xuân nhân đôi).' }
+  DOI_VAN:        { id: 'DOI_VAN',        name: 'Đổi Vận',          count: 14, timing: 'STEP2',    desc: 'Tung lại tối đa 2 viên xúc xắc bất kỳ trong 4 viên vừa gieo (Bước 2).' },
+  BE_KIM:         { id: 'BE_KIM',         name: 'Bẻ Kim Đồng Hồ',   count: 9,  timing: 'STEP3',    desc: 'Đẩy hoặc kéo kim đồng hồ 1 vạch ở Bước 3 (không kích hoạt vạch mới).' },
+  THAN_HANH:      { id: 'THAN_HANH',      name: 'Thần Hành Phù',    count: 14, timing: 'ACTION',   desc: 'Cộng +3 MP vào tổng Điểm Di Chuyển trong lượt này (dùng ở Bước 4 hoặc Bước 5 trước khi đi).' },
+  VU_KHI:         { id: 'VU_KHI',         name: 'Vũ Khí Bí Mật',    count: 8,  timing: 'COMBAT',   desc: 'Cộng +3 điểm vào tổng xúc xắc chiến đấu của bản thân (khi giao chiến 1v1).' },
+  HO_THAN:        { id: 'HO_THAN',        name: 'Hộ Thân Phù',      count: 8,  timing: 'REACTION', desc: 'Tự động chặn 1 lần mất Mệnh Bài từ Giao chiến hoặc Bẫy (không chặn Call Out, cấm ở Mùa Hạ).' },
+  SUONG_MU:       { id: 'SUONG_MU',       name: 'Sương Mù Che Mắt', count: 5,  timing: 'REACTION', desc: 'Tự động hủy lượt Call Out của đối thủ; Kỹ năng Ẩn vẫn kích hoạt và không bị lộ.' },
+  GIO_MUA:        { id: 'GIO_MUA',        name: 'Gió Mùa',          count: 7,  timing: 'ACTION',   desc: 'Lượt này mọi địa hình hợp lệ chỉ tốn 1 MP và bỏ qua khóa chân Mùa Thu / Ô Lửa (dùng ở Bước 4 hoặc 5).' },
+  DICH_CHUYEN:    { id: 'DICH_CHUYEN',    name: 'Dịch Chuyển Ngắn', count: 8,  timing: 'ACTION',   desc: 'Hoán đổi vị trí với người chơi đứng cách tối đa 3 ô (dùng ở Bước 4 hoặc 5).' },
+  CAM_BAY:        { id: 'CAM_BAY',        name: 'Cạm Bẫy Gai',      count: 7,  timing: 'ACTION',   desc: 'Đặt 1 token Bẫy tại ô đang đứng; người tiếp theo đi qua phải dừng lại (dùng ở Bước 4 hoặc 5).' },
+  KHOA_CHIEU:     { id: 'KHOA_CHIEU',     name: 'Khóa Chiêu',       count: 4,  timing: 'ACTION',   desc: 'Chỉ định 1 đối thủ; kỹ năng Thiên/Địa của họ bị khóa hồi chiêu thêm 1 vòng (dùng ở Bước 4 hoặc 5).' },
+  DOAT_BAO:       { id: 'DOAT_BAO',       name: 'Đoạt Bảo',         count: 4,  timing: 'ACTION',   desc: 'Cướp ngẫu nhiên 1 Thẻ Hỗ Trợ từ người chơi đang đứng cùng Mùa (dùng ở Bước 4 hoặc 5).' },
+  HOI_SINH:       { id: 'HOI_SINH',       name: 'Hồi Sinh Thảo',    count: 8,  timing: 'ACTION',   desc: 'Hồi phục ngay 1 Mệnh Bài (tối đa 3; Mùa Xuân nhân đôi, dùng ở Bước 4 hoặc 5).' }
 };
 
 export function createShuffledSupportDeck() {

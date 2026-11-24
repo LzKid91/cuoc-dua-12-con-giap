@@ -11,6 +11,7 @@ import {
 import {
   startGame, pickStartHex, rollFourDice, rerollSelectedDice,
   confirmDiceSplit, bendClockCard, proceedToStep4, chooseLinhKhi,
+  resolveSkillChoice, useSavedSkill,
   playSupportCard, discardCardFromHand, declareHiddenSkill,
   submitCallOut, resolveCallOutNoCaller, calculateCurrentMp,
   proceedToStep5, executeMove, chooseCombatTarget,
@@ -243,12 +244,13 @@ function renderPlayerList() {
     const isMe = p.id === myPlayerId;
     const isTurn = pubState.status === 'playing' && p.id === activeId;
     const cd = p.cooldownTD > 0 ? '⏳Hồi chiêu' : '✅Sẵn sàng';
+    const savedTag = p.savedSkill ? `<span class="badge-saved-skill" title="${p.savedSkill.desc}">💾 ${p.savedSkill.name}</span>` : '';
     const hiddenTag = p.hiddenRevealed ? `Ẩn ${p.revealedVariant}` : 'Ẩn: ?';
     return `
       <div class="player-row ${isTurn ? 'active-turn' : ''}">
         <div>
           <strong style="color:${p.color}">#${idx + 1} ${p.zodiac}</strong> ${p.name} ${isMe ? '<b>(Bạn)</b>' : ''} ${isTurn ? '⭐' : ''}
-          <div class="sub-meta">${cd} | ${hiddenTag} | 🃏${p.handCount || 0}</div>
+          <div class="sub-meta">${cd} ${savedTag} | ${hiddenTag} | 🃏${p.handCount || 0}</div>
         </div>
         <div class="right-meta">
           <span>❤️${p.hp}</span><br/>
@@ -438,8 +440,37 @@ function renderActionPanel() {
       <button id="btnToStep4" class="btn-green" style="width:100%;">▶ Tiếp tục sang Bước 4 (Hiệu ứng giờ)</button>
     `;
   } else if (turn.phase === 'STEP4_ACTION') {
-    html += `<p style="margin:6px 0;"><strong>Bước 4:</strong> Hiệu ứng giờ đã xử lý. Bạn có thể dùng Thẻ Bước 4 (${turn.cardsUsed}/2 thẻ) hoặc Kỹ năng Ẩn.</p>`;
-    if (turn.linhKhiPending) {
+    html += `<p style="margin:6px 0;"><strong>Bước 4:</strong> Hiệu ứng giờ & Thẻ Hỗ Trợ (${turn.cardsUsed}/2 thẻ đã dùng).</p>`;
+    if (pubState.pendingSkillChoice) {
+      const sc = pubState.pendingSkillChoice;
+      if (sc.playerId === myPlayerId) {
+        html += `
+          <div class="skill-choice-box">
+            <div class="skill-choice-header">
+              🌟 <strong>GIỜ CON GIÁP CỦA BẠN: ${sc.zodiac} (${sc.isThien ? 'Thiên' : 'Địa'} – ${sc.name})</strong>
+            </div>
+            <div class="skill-choice-desc">${sc.desc} <span class="tag">${sc.type}</span></div>
+            ${me?.savedSkill ? `<div class="warn-bar" style="margin:6px 0;">⚠️ Bạn đang giữ: <b>${me.savedSkill.name}</b> (${me.savedSkill.isThien ? 'Thiên' : 'Địa'}). Nếu giữ kỹ năng mới sẽ thay thế.</div>` : ''}
+            <div class="btn-row" style="margin-top:8px;">
+              <button id="btnUseSkillNow" class="btn-green">⚡ Sử dụng luôn bây giờ</button>
+              <button id="btnSaveSkillLater" class="btn-gold">💾 Giữ lại cho vòng sau</button>
+              ${me?.savedSkill ? '<button id="btnKeepOldSkill" class="btn-muted">❌ Giữ nguyên chiêu cũ</button>' : ''}
+            </div>
+          </div>
+        `;
+      } else {
+        const scOwner = pubState.players[sc.playerId];
+        html += `
+          <div class="skill-choice-box waiting">
+            ⏰ Kim dừng tại giờ <strong>${sc.zodiac} (${scOwner?.name || 'Đối thủ'})</strong>:
+            <b>${sc.name}</b> (${sc.isThien ? 'Thiên' : 'Địa'}).
+            <br/>
+            <em>Đang chờ ${sc.zodiac} chọn Sử dụng luôn hay Giữ lại cho vòng sau...</em>
+            ${isHost && scOwner?.isBot ? '<button id="btnBotResolveSkill" class="btn-muted" style="margin-top:6px;width:100%;">🤖 Cho Bot chọn</button>' : ''}
+          </div>
+        `;
+      }
+    } else if (turn.linhKhiPending) {
       html += `
         <div class="linhkhi-box">
           <strong>✨ Chọn Linh Khí Thời Gian:</strong>
@@ -454,7 +485,8 @@ function renderActionPanel() {
       html += `
         <div class="btn-row" style="margin-top:6px;">
           <button type="button" id="btnToStep5" class="btn-green">▶ Sang Bước 5: Di chuyển</button>
-          ${me.hiddenUses < 2 && me.cooldownHidden === 0 ? '<button id="btnUseHidden">👁️ Dùng Kỹ năng Ẩn</button>' : ''}
+          ${me && me.hiddenUses < 2 && me.cooldownHidden === 0 ? '<button id="btnUseHidden">👁️ Dùng Kỹ năng Ẩn</button>' : ''}
+          ${me?.savedSkill && me.cooldownTD === 0 ? `<button id="btnUseSavedSkillAction" class="btn-purple">⚡ Dùng Kỹ Năng Đã Giữ (${me.savedSkill.name})</button>` : ''}
         </div>
         <p id="step5Status" role="status" aria-live="polite" style="display:none;margin-top:8px;padding:7px 9px;border-radius:6px;font-size:0.8rem;line-height:1.35;"></p>
       `;
@@ -530,7 +562,8 @@ function renderActionPanel() {
 
       <div class="btn-row" style="margin-top:8px;">
         <button id="btnStayStill" class="btn-muted">Đứng yên (0 ô)</button>
-        ${me.hiddenUses < 2 && me.cooldownHidden === 0 ? '<button id="btnUseHidden">👁️ Dùng Kỹ năng Ẩn</button>' : ''}
+        ${me && me.hiddenUses < 2 && me.cooldownHidden === 0 ? '<button id="btnUseHidden">👁️ Dùng Kỹ năng Ẩn</button>' : ''}
+        ${me?.savedSkill && me.cooldownTD === 0 ? `<button id="btnUseSavedSkillAction" class="btn-purple">⚡ Dùng Kỹ Năng Đã Giữ (${me.savedSkill.name})</button>` : ''}
       </div>
     `;
   } else if (turn.phase === 'COMBAT_CHOOSE') {
@@ -545,6 +578,27 @@ function renderActionPanel() {
   panel.innerHTML = html;
 
   // Bind events cho bảng hành động
+  $('btnUseSkillNow')?.addEventListener('click', async () => {
+    try { await resolveSkillChoice(currentRoom, pubState, graph, 'USE'); } catch (e) { alert(e.message); }
+  });
+  $('btnSaveSkillLater')?.addEventListener('click', async () => {
+    try { await resolveSkillChoice(currentRoom, pubState, graph, 'SAVE'); } catch (e) { alert(e.message); }
+  });
+  $('btnKeepOldSkill')?.addEventListener('click', async () => {
+    try { await resolveSkillChoice(currentRoom, pubState, graph, 'KEEP_OLD'); } catch (e) { alert(e.message); }
+  });
+  $('btnBotResolveSkill')?.addEventListener('click', async () => {
+    try {
+      const sc = pubState.pendingSkillChoice;
+      if (!sc) return;
+      const choice = (sc.type === 'Tự thân' && pubState.turn?.playerId !== sc.playerId) ? 'SAVE' : 'USE';
+      await resolveSkillChoice(currentRoom, pubState, graph, choice);
+    } catch (e) { alert(e.message); }
+  });
+  $('btnUseSavedSkillAction')?.addEventListener('click', async () => {
+    try { await useSavedSkill(currentRoom, pubState, graph, myPlayerId); } catch (e) { alert(e.message); }
+  });
+
   $('btnRoll4d6')?.addEventListener('click', () => rollFourDice(currentRoom, pubState));
   document.querySelectorAll('.die-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -640,29 +694,94 @@ function renderHand() {
   const turn = pubState.turn;
   const isMyTurn = turn?.playerId === myPlayerId;
 
+  let savedSkillHtml = '';
+  if (me?.savedSkill) {
+    savedSkillHtml = `
+      <div class="saved-skill-card">
+        <div style="flex:1;">
+          <div style="font-size:0.75rem;font-weight:700;color:#512da8;">💾 KỸ NĂNG THIÊN/ĐỊA ĐANG GIỮ</div>
+          <strong>${me.savedSkill.name}</strong> <span class="tag" style="background:#ede7f6;color:#4a148c;font-weight:700;">${me.savedSkill.isThien ? 'Thiên' : 'Địa'}</span>
+          <div class="card-desc">${me.savedSkill.desc}</div>
+        </div>
+        <div class="card-actions">
+          ${isMyTurn && (turn?.phase === 'STEP4_ACTION' || turn?.phase === 'STEP5_MOVE') && me.cooldownTD === 0
+            ? `<button id="btnUseSavedSkillHand" class="btn-purple" style="padding:5px 9px;">Kích hoạt</button>`
+            : `<button class="card-use-btn btn-muted" disabled title="${me.cooldownTD > 0 ? 'Kỹ năng đang hồi chiêu' : (isMyTurn ? 'Dùng ở Bước 4 hoặc Bước 5' : 'Dùng khi đến lượt bạn')}">${me.cooldownTD > 0 ? 'Hồi chiêu' : (isMyTurn ? 'Bước 4/5' : 'Chờ lượt')}</button>`
+          }
+        </div>
+      </div>
+    `;
+  }
+
   if (hand.length === 0) {
-    handEl.innerHTML = '<small style="color:#6d4c41;">Chưa có Thẻ Hỗ Trợ trên tay (đi qua Trạm +1 / +2 Thẻ để rút).</small>';
+    handEl.innerHTML = savedSkillHtml + '<small style="color:#6d4c41;">Chưa có Thẻ Hỗ Trợ trên tay (đi qua Trạm +1 / +2 Thẻ để rút).</small>';
+    $('btnUseSavedSkillHand')?.addEventListener('click', async () => {
+      try { await useSavedSkill(currentRoom, pubState, graph, myPlayerId); } catch (e) { alert(e.message); }
+    });
     return;
   }
 
   let overWarn = hand.length > 4 ? '<div class="warn-bar">⚠️ Bạn đang cầm quá 4 thẻ! Hãy bấm nút 🗑️ bỏ bớt cho còn 4 lá.</div>' : '';
-  handEl.innerHTML = overWarn + hand.map((cardId, idx) => {
+  const cardsHtml = hand.map((cardId, idx) => {
     const def = SUPPORT_CARD_DEFS[cardId];
     if (!def) return '';
     let actionBtn = '';
-    if (cardId === 'DOI_VAN' && isMyTurn && turn.phase === 'STEP2_SPLIT') {
-      actionBtn = `<button class="card-use-btn" data-act="DOI_VAN" data-idx="${idx}">Dùng</button>`;
-    } else if (cardId === 'BE_KIM' && isMyTurn && turn.phase === 'STEP3_CLOCK') {
-      actionBtn = `<button class="card-use-btn" data-act="BE_KIM_P" data-idx="${idx}">+1h</button><button class="card-use-btn" data-act="BE_KIM_M" data-idx="${idx}">-1h</button>`;
-    } else if (cardId === 'VU_KHI' && pubState.combat?.type === '1V1' && (pubState.combat.attackerId === myPlayerId || pubState.combat.defenderId === myPlayerId)) {
-      actionBtn = `<button class="card-use-btn" data-act="VU_KHI" data-idx="${idx}">+3 Điểm</button>`;
-    } else if ((def.timing === 'STEP4' && isMyTurn && turn.phase === 'STEP4_ACTION') || (def.timing === 'STEP5' && isMyTurn && turn.phase === 'STEP5_MOVE')) {
-      actionBtn = `<button class="card-use-btn" data-act="NORMAL" data-idx="${idx}">Dùng</button>`;
+    const isActionCard = ['THAN_HANH', 'GIO_MUA', 'HOI_SINH', 'DICH_CHUYEN', 'CAM_BAY', 'KHOA_CHIEU', 'DOAT_BAO'].includes(cardId)
+      || ['STEP4', 'STEP5', 'ACTION'].includes(def.timing);
+
+    if (isMyTurn) {
+      if (isActionCard) {
+        if (turn?.phase === 'STEP4_ACTION' || turn?.phase === 'STEP5_MOVE') {
+          if (turn.cardsUsed >= 2) {
+            actionBtn = `<button class="card-use-btn btn-muted" disabled title="Đã dùng tối đa 2 thẻ lượt này">Đã dùng 2 thẻ</button>`;
+          } else {
+            actionBtn = `<button class="card-use-btn" data-act="NORMAL" data-idx="${idx}">Dùng</button>`;
+          }
+        } else {
+          actionBtn = `<button class="card-use-btn btn-muted" disabled title="Dùng ở Bước 4 (Hành động) hoặc Bước 5 (Di chuyển)">Bước 4/5</button>`;
+        }
+      } else if (cardId === 'DOI_VAN') {
+        if (turn?.phase === 'STEP2_SPLIT') {
+          actionBtn = `<button class="card-use-btn" data-act="DOI_VAN" data-idx="${idx}">Dùng</button>`;
+        } else {
+          actionBtn = `<button class="card-use-btn btn-muted" disabled title="Dùng ở Bước 2 để gieo lại xúc xắc">Bước 2</button>`;
+        }
+      } else if (cardId === 'BE_KIM') {
+        if (turn?.phase === 'STEP3_CLOCK') {
+          actionBtn = `<button class="card-use-btn" data-act="BE_KIM_P" data-idx="${idx}">+1h</button><button class="card-use-btn" data-act="BE_KIM_M" data-idx="${idx}">-1h</button>`;
+        } else {
+          actionBtn = `<button class="card-use-btn btn-muted" disabled title="Dùng ở Bước 3 khi kim dừng">Bước 3</button>`;
+        }
+      } else if (cardId === 'VU_KHI') {
+        if (pubState.combat?.type === '1V1' && (pubState.combat.attackerId === myPlayerId || pubState.combat.defenderId === myPlayerId)) {
+          actionBtn = `<button class="card-use-btn" data-act="VU_KHI" data-idx="${idx}">+3 Điểm</button>`;
+        } else {
+          actionBtn = `<button class="card-use-btn btn-muted" disabled title="Dùng khi tham gia giao chiến 1v1">Khi giao chiến</button>`;
+        }
+      } else if (cardId === 'HO_THAN') {
+        actionBtn = `<span class="tag-passive" title="Tự động kích hoạt khi bạn nhận sát thương">🛡️ Tự kích hoạt</span>`;
+      } else if (cardId === 'SUONG_MU') {
+        actionBtn = `<span class="tag-passive" title="Tự động kích hoạt khi bị Call Out">🌫️ Tự kích hoạt</span>`;
+      }
+    } else {
+      // Không phải lượt của mình
+      if (cardId === 'VU_KHI' && pubState.combat?.type === '1V1' && (pubState.combat.attackerId === myPlayerId || pubState.combat.defenderId === myPlayerId)) {
+        actionBtn = `<button class="card-use-btn" data-act="VU_KHI" data-idx="${idx}">+3 Điểm</button>`;
+      } else if (cardId === 'HO_THAN') {
+        actionBtn = `<span class="tag-passive" title="Tự động kích hoạt khi bạn nhận sát thương">🛡️ Tự kích hoạt</span>`;
+      } else if (cardId === 'SUONG_MU') {
+        actionBtn = `<span class="tag-passive" title="Tự động kích hoạt khi bị Call Out">🌫️ Tự kích hoạt</span>`;
+      } else {
+        actionBtn = `<button class="card-use-btn btn-muted" disabled title="Chỉ dùng khi đến lượt của bạn">Chờ lượt</button>`;
+      }
     }
+
+    const tagLabel = isActionCard ? 'Bước 4/5' : def.timing;
+
     return `
       <div class="hand-card">
         <div>
-          <strong>${def.name}</strong> <span class="tag">${def.timing}</span>
+          <strong>${def.name}</strong> <span class="tag">${tagLabel}</span>
           <div class="card-desc">${def.desc}</div>
         </div>
         <div class="card-actions">
@@ -672,6 +791,12 @@ function renderHand() {
       </div>
     `;
   }).join('');
+
+  handEl.innerHTML = savedSkillHtml + overWarn + cardsHtml;
+
+  $('btnUseSavedSkillHand')?.addEventListener('click', async () => {
+    try { await useSavedSkill(currentRoom, pubState, graph, myPlayerId); } catch (e) { alert(e.message); }
+  });
 
   handEl.querySelectorAll('.card-use-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -688,8 +813,56 @@ function renderHand() {
           await bendClockCard(currentRoom, pubState, -1, idx);
         } else if (act === 'VU_KHI') {
           await useCombatWeaponCard(currentRoom, pubState, myPlayerId, idx);
-        } else {
-          await playSupportCard(currentRoom, pubState, graph, myPlayerId, idx);
+        } else if (act === 'NORMAL') {
+          const cardId = hand[idx];
+          if (cardId === 'DICH_CHUYEN') {
+            const others = Object.values(pubState.players).filter(o => o.id !== myPlayerId && !o.statusFlags?.immuneUntilNextTurn);
+            const valid = others.filter(o => getHexDistance(graph, me.hexId, o.hexId) <= 3);
+            if (valid.length === 0) {
+              alert('Không có đối thủ nào trong phạm vi 3 ô để hoán đổi vị trí!');
+              return;
+            }
+            let targetId = valid[0].id;
+            if (valid.length > 1) {
+              const names = valid.map((v, i) => `${i + 1}: ${v.zodiac} (${v.name})`).join('\n');
+              const pick = prompt(`Chọn đối thủ để hoán đổi vị trí:\n${names}\n(Nhập số 1-${valid.length}):`, '1');
+              const n = parseInt(pick) - 1;
+              if (n >= 0 && n < valid.length) targetId = valid[n].id;
+            }
+            await playSupportCard(currentRoom, pubState, graph, myPlayerId, idx, targetId);
+          } else if (cardId === 'KHOA_CHIEU') {
+            const others = Object.values(pubState.players).filter(o => o.id !== myPlayerId && !o.statusFlags?.immuneUntilNextTurn);
+            if (others.length === 0) {
+              alert('Không có đối thủ hợp lệ để khóa chiêu!');
+              return;
+            }
+            let targetId = others[0].id;
+            if (others.length > 1) {
+              const names = others.map((v, i) => `${i + 1}: ${v.zodiac} (${v.name})`).join('\n');
+              const pick = prompt(`Chọn đối thủ để khóa chiêu Thiên/Địa thêm 1 vòng:\n${names}\n(Nhập số 1-${others.length}):`, '1');
+              const n = parseInt(pick) - 1;
+              if (n >= 0 && n < others.length) targetId = others[n].id;
+            }
+            await playSupportCard(currentRoom, pubState, graph, myPlayerId, idx, targetId);
+          } else if (cardId === 'DOAT_BAO') {
+            const mySeason = graph.nodes[me.hexId]?.season;
+            const others = Object.values(pubState.players).filter(o => o.id !== myPlayerId && !o.statusFlags?.immuneUntilNextTurn);
+            const valid = others.filter(o => graph.nodes[o.hexId]?.season === mySeason && o.handCount > 0);
+            if (valid.length === 0) {
+              alert('Không có đối thủ nào cùng Mùa đang cầm thẻ để cướp!');
+              return;
+            }
+            let targetId = valid[0].id;
+            if (valid.length > 1) {
+              const names = valid.map((v, i) => `${i + 1}: ${v.zodiac} (${v.name})`).join('\n');
+              const pick = prompt(`Chọn đối thủ cùng Mùa để cướp thẻ:\n${names}\n(Nhập số 1-${valid.length}):`, '1');
+              const n = parseInt(pick) - 1;
+              if (n >= 0 && n < valid.length) targetId = valid[n].id;
+            }
+            await playSupportCard(currentRoom, pubState, graph, myPlayerId, idx, targetId);
+          } else {
+            await playSupportCard(currentRoom, pubState, graph, myPlayerId, idx);
+          }
         }
       } catch (e) { alert(e.message); }
     });
