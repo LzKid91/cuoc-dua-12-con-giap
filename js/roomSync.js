@@ -172,6 +172,19 @@ export async function savePublicState(roomCode, newState) {
   await set(ref(db, `rooms/${roomCode}/public`), newState);
 }
 
+// Subscribe to Realtime Database's connection monitor.
+export function subscribeConnection(onChange) {
+  return onValue(ref(db, '.info/connected'), (snap) => {
+    onChange(snap.val() === true);
+  });
+}
+
+// Write only the specified public-state fields instead of replacing the
+// entire room state during a simple turn transition.
+export async function savePublicStatePatch(roomCode, patch) {
+  await update(ref(db, `rooms/${roomCode}/public`), patch);
+}
+
 export async function savePrivateData(roomCode, playerId, data) {
   await set(ref(db, `rooms/${roomCode}/private/${playerId}`), data);
 }
