@@ -413,6 +413,21 @@ export class BoardRenderer {
       return;
     }
 
+    // Bụi Hoa Dày: cụm hoa đào rậm, tiêu hao 2 MP.
+    if (t === 'flower_thicket') {
+      g.appendChild(el('path', {
+        d: `M ${x - 0.42},${y + 0.28} Q ${x - 0.20},${y - 0.25} ${x},${y - 0.08} Q ${x + 0.18},${y - 0.43} ${x + 0.40},${y + 0.22}`,
+        fill: 'none', stroke: '#50874C', 'stroke-width': 0.11, 'stroke-linecap': 'round', ...noPointer
+      }));
+      for (const [dx, dy] of [[-0.22,-0.17],[0.03,-0.27],[0.27,-0.08],[-0.02,0.14]]) {
+        g.appendChild(el('circle', { cx: x + dx, cy: y + dy, r: 0.17, fill: '#F6A7C5', stroke: '#D77FA1', 'stroke-width': 0.04, ...noPointer }));
+        g.appendChild(el('circle', { cx: x + dx, cy: y + dy, r: 0.055, fill: '#E4B548', ...noPointer }));
+      }
+      g.appendChild(el('circle', { cx: x + 0.39, cy: y - 0.37, r: 0.19, fill: '#FFF4D8', stroke: '#B97835', 'stroke-width': 0.045, ...noPointer }));
+      g.appendChild(el('text', { x: x + 0.39, y: y - 0.30, 'text-anchor': 'middle', fill: '#87421F', 'font-size': '0.23', 'font-weight': '900', ...noPointer }, '2'));
+      return;
+    }
+
     // Rừng Phong: lá phong đỏ có cuống, thể hiện rõ rừng lá đổi màu.
     if (t === 'forest') {
       g.appendChild(el('path', {
