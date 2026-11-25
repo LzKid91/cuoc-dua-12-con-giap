@@ -229,3 +229,30 @@ export async function savePrivateData(roomCode, playerId, data) {
 export async function setHiddenChoice(roomCode, playerId, choice) {
   await update(ref(db, `rooms/${roomCode}/private/${playerId}`), { hiddenChoice: choice });
 }
+
+export async function leaveRoom(roomCode, playerId) {
+  if (!roomCode || !playerId) return;
+  try {
+    const snap = await get(ref(db, `rooms/${roomCode}/public`));
+    if (snap.exists()) {
+      const pub = snap.val();
+      const players = pub.players || {};
+      delete players[playerId];
+      const remainingIds = Object.keys(players);
+      if (remainingIds.length === 0) {
+        await set(ref(db, `rooms/${roomCode}`), null);
+      } else {
+        const updates = {
+          [`rooms/${roomCode}/public/players/${playerId}`]: null,
+          [`rooms/${roomCode}/private/${playerId}`]: null
+        };
+        if (pub.hostId === playerId) {
+          updates[`rooms/${roomCode}/public/hostId`] = remainingIds[0];
+        }
+        await update(ref(db), updates);
+      }
+    }
+  } catch (err) {
+    console.warn('[leaveRoom] Error removing player from room:', err);
+  }
+}

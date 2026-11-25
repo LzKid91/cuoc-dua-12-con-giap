@@ -411,19 +411,21 @@ export async function pickStartHex(roomCode, rawState, playerId, hexId) {
 }
 
 // =====================================================================
-// 2. BƯỚC 1 – TUNG 4D6 & BƯỚC 2 – CHIA 2 QUAY KIM / 2 MP
+// 2. BƯỚC 1 – TUNG 3D6 & BƯỚC 2 – CHIA 1 DI CHUYỂN / 2 QUAY KIM
 // =====================================================================
-export async function rollFourDice(roomCode, rawState) {
+export async function rollThreeDice(roomCode, rawState) {
   const state = cloneState(rawState);
   if (!state.turn || state.turn.phase !== 'STEP1_ROLL') return;
 
   const p = state.players[state.turn.playerId];
-  state.turn.dice = [rollDie(), rollDie(), rollDie(), rollDie()];
-  state.turn.clockIndices = [0, 1];
+  state.turn.dice = [rollDie(), rollDie(), rollDie()];
+  state.turn.clockIndices = [1, 2];
+  state.turn.moveIndex = 0;
   state.turn.phase = 'STEP2_SPLIT';
-  addLog(state, `🎲 ${p.zodiac} tung 4d6 ra [${state.turn.dice.join(', ')}].`);
+  addLog(state, `🎲 ${p.zodiac} tung 3d6 ra [${state.turn.dice.join(', ')}].`);
   await savePublicState(roomCode, state);
 }
+export const rollFourDice = rollThreeDice;
 
 export async function rerollSelectedDice(roomCode, rawState, indices, useFreeSkill = false, cardIndex = null) {
   const state = cloneState(rawState);
@@ -464,12 +466,14 @@ export async function confirmDiceSplit(roomCode, rawState, clockIndices) {
   if (!clockIndices || clockIndices.length !== 2) return;
 
   const dice = state.turn.dice;
-  const moveIndices = [0, 1, 2, 3].filter(i => !clockIndices.includes(i));
+  const moveIndices = [0, 1, 2].filter(i => !clockIndices.includes(i));
+  const moveIndex = moveIndices[0] ?? 0;
   const clockSum = dice[clockIndices[0]] + dice[clockIndices[1]];
-  const moveSum = dice[moveIndices[0]] + dice[moveIndices[1]];
-  const isMovePair = dice[moveIndices[0]] === dice[moveIndices[1]];
+  const moveSum = dice[moveIndex];
+  const isMovePair = false;
 
   state.turn.clockIndices = clockIndices;
+  state.turn.moveIndex = moveIndex;
   state.turn.clockSum = clockSum;
   state.turn.moveSum = moveSum;
   state.turn.isMovePair = isMovePair;
@@ -480,7 +484,7 @@ export async function confirmDiceSplit(roomCode, rawState, clockIndices) {
 
   const hrZodiac = ZODIACS[(state.clockHour - 1) % 12];
   const hrKind = state.clockHour <= 12 ? 'Thiên' : 'Địa';
-  addLog(state, `⏰ Kim quay +${clockSum}h → dừng tại ${state.clockHour}h (${hrZodiac} – ${hrKind}). Nhóm Di chuyển: ${moveSum} MP.`);
+  addLog(state, `⏰ Kim quay +${clockSum}h (xúc xắc [${dice[clockIndices[0]]}, ${dice[clockIndices[1]]}]) → dừng tại ${state.clockHour}h (${hrZodiac} – ${hrKind}). Di chuyển: ${moveSum} MP (viên ${dice[moveIndex]}).`);
 
   await savePublicState(roomCode, state);
 }
@@ -1786,11 +1790,13 @@ export async function runBotStep(roomCode, rawState, graph) {
   if (!p?.isBot) return;
 
   if (state.turn.phase === 'STEP1_ROLL') {
-    await rollFourDice(roomCode, state);
+    await rollThreeDice(roomCode, state);
   } else if (state.turn.phase === 'STEP2_SPLIT') {
-    // Bot chia 2 viên lớn nhất cho Di chuyển
-    const indexed = state.turn.dice.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
-    await confirmDiceSplit(roomCode, state, [indexed[0].i, indexed[1].i]);
+    // Bot chọn 1 viên lớn nhất cho Di chuyển, 2 viên còn lại cho Quay Kim
+    const indexed = state.turn.dice.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+    const moveIdx = indexed[0].i;
+    const clockIndices = [0, 1, 2].filter(i => i !== moveIdx);
+    await confirmDiceSplit(roomCode, state, clockIndices);
   } else if (state.turn.phase === 'STEP3_CLOCK') {
     await proceedToStep4(roomCode, state, graph);
   } else if (state.turn.phase === 'STEP4_ACTION') {

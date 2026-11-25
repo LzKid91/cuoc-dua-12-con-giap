@@ -4,16 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cuộc Đua 12 Con Giáp – Online v3.1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="topbar">
+  <header class="topbar" id="gameTopbar" style="display:none;">
     <div class="brand">
+      <span class="brand-icon">🌟</span>
       <h1>Cuộc Đua 12 Con Giáp</h1>
       <span class="badge" id="roomBadge">Chưa vào phòng</span>
     </div>
 
-    <div class="controls" id="lobbyBar">
+    <!-- Thanh lobby cũ (ẩn làm fallback) -->
+    <div class="controls" id="lobbyBar" style="display:none;">
       <input id="playerNameInput" type="text" placeholder="Tên của bạn..." />
       <button id="btnCreateRoom">Tạo phòng</button>
       <input id="roomCodeInput" type="text" placeholder="Mã 4 ký tự" maxlength="4" style="width:95px;text-transform:uppercase;" />
@@ -23,12 +28,146 @@
     <div class="controls" id="roomInfoBar" style="display:none;">
       <span id="clockReadout">Vòng 1 | ⏰ 3h</span>
       <button id="btnOpenGuide" class="btn-muted">📖 Tra cứu 12 Con Giáp</button>
+      <button id="btnTopbarLeave" class="btn-muted btn-leave">🚪 Rời phòng</button>
     </div>
   </header>
 
   <div id="calloutBanner" class="callout-banner" style="display:none;"></div>
 
-  <main class="layout">
+  <!-- 1. MÀN HÌNH CHÀO / BẮT ĐẦU (Trước khi vào phòng) -->
+  <div id="welcomeScreen" class="screen-container welcome-starfield-screen">
+    <!-- Canvas nền vũ trụ Thời Không (Starfield Warp Effect) -->
+    <canvas id="starfieldCanvas" class="starfield-cv" role="img" aria-label="Nền Thời Không Thiên Đình, giữ để tăng tốc"></canvas>
+    <div class="starfield-hud" aria-live="off">
+      <b>Cruise</b>
+      <span>×1.0</span>
+    </div>
+
+    <!-- Khối Hero 2 Cột chuẩn theo thiết kế tham chiếu -->
+    <div class="hero-container">
+      <!-- CỘT TRÁI: TIÊU ĐỀ, MÔ TẢ & FORM TẠO/VÀO PHÒNG -->
+      <div class="hero-left">
+        <div class="hero-badge">CHIẾN THUẬT TRỰC TUYẾN · MULTIPLAYER</div>
+        <h1 class="hero-title">
+          Cuộc Đua<br/>
+          <span class="title-accent">12</span> <span class="title-gradient">Con Giáp</span>
+        </h1>
+        <p class="hero-desc">
+          Tranh đoạt vị trí Thiên Đình qua 4 mùa luân chuyển và 24 canh giờ thời không.
+        </p>
+
+        <!-- Form Card thao tác tạo & vào phòng -->
+        <div class="hero-card">
+          <label class="hero-label" for="welcomePlayerName">TÊN CHIẾN BINH</label>
+          <input id="welcomePlayerName" class="hero-input" type="text" placeholder="Nhập tên hiển thị của bạn..." maxlength="20" />
+
+          <button id="btnWelcomeCreate" class="btn-hero-create" type="button">
+            Tạo phòng mới &rarr;
+          </button>
+
+          <div class="hero-divider">
+            <span>hoặc vào phòng có sẵn</span>
+          </div>
+
+          <div class="hero-join-row">
+            <input id="welcomeRoomCode" class="hero-code-input" type="text" placeholder="MÃ 4 KÝ TỰ" maxlength="4" style="text-transform:uppercase;" />
+            <button id="btnWelcomeJoin" class="btn-hero-join" type="button">Vào</button>
+          </div>
+        </div>
+
+        <button id="btnWelcomeGuide" class="hero-guide-link" type="button">
+          📖 Bảng tra cứu 12 con giáp & kỹ năng
+        </button>
+      </div>
+
+      <!-- CỘT PHẢI: VÒNG TRÒN ĐỒNG HỒ 12 CON GIÁP & THIÊN ĐÌNH -->
+      <div class="hero-right">
+        <div class="zodiac-orbit-wrap">
+          <!-- Vòng tròn quỹ đạo đứt nét -->
+          <div class="zodiac-orbit-track"></div>
+
+          <!-- Lõi trung tâm Thiên Đình -->
+          <div class="zodiac-center-orb">
+            <span class="center-text">THIÊN ĐÌNH</span>
+          </div>
+
+          <!-- Vòng quay chuyển động chứa 12 nút con giáp -->
+          <div class="zodiac-nodes-ring">
+            <div class="zodiac-node" style="--i:0"><span>Tý</span></div>
+            <div class="zodiac-node" style="--i:1"><span>Sửu</span></div>
+            <div class="zodiac-node" style="--i:2"><span>Dần</span></div>
+            <div class="zodiac-node" style="--i:3"><span>Mão</span></div>
+            <div class="zodiac-node" style="--i:4"><span>Thìn</span></div>
+            <div class="zodiac-node" style="--i:5"><span>Tỵ</span></div>
+            <div class="zodiac-node" style="--i:6"><span>Ngọ</span></div>
+            <div class="zodiac-node" style="--i:7"><span>Mùi</span></div>
+            <div class="zodiac-node" style="--i:8"><span>Thân</span></div>
+            <div class="zodiac-node" style="--i:9"><span>Dậu</span></div>
+            <div class="zodiac-node" style="--i:10"><span>Tuất</span></div>
+            <div class="zodiac-node" style="--i:11"><span>Hợi</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. MÀN HÌNH CHỜ PHÒNG ĐẤU (Khi đã vào phòng, trước khi bắt đầu trận và hiện bản đồ) -->
+  <div id="lobbyWaitingScreen" class="screen-container waiting-starfield-screen" style="display:none;">
+    <div class="waiting-box">
+      <div class="waiting-header">
+        <div class="waiting-title-wrap">
+          <span class="waiting-tag">SẢNH CHỜ VÁN ĐẤU</span>
+          <h2>MÃ PHÒNG: <span id="waitingRoomCodeText" class="code-highlight">----</span></h2>
+        </div>
+        <div class="waiting-header-actions">
+          <button id="btnCopyRoomCode" class="btn-copy">📋 Sao chép mã phòng</button>
+          <button id="btnWaitingGuide" class="btn-muted">📖 Tra cứu 12 Con Giáp</button>
+          <button id="btnWaitingLeave" class="btn-muted btn-leave">🚪 Rời phòng</button>
+        </div>
+      </div>
+
+      <div class="waiting-content-grid">
+        <!-- Cột trái: Con Giáp của bạn & Lựa chọn kỹ năng ẩn -->
+        <div class="waiting-col my-zodiac-col">
+          <div class="waiting-card" id="waitingMyZodiacCard">
+            <!-- Dynamic rendered in JS -->
+          </div>
+        </div>
+
+        <!-- Cột phải: Danh sách người chơi trong phòng (12 slots) -->
+        <div class="waiting-col roster-col">
+          <div class="waiting-card">
+            <div class="roster-header">
+              <h3>👥 Người Chơi Trong Phòng (<span id="waitingPlayerCount">0/12</span>)</h3>
+            </div>
+            <div id="waitingRosterList" class="roster-grid">
+              <!-- Dynamic rendered in JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thanh điều khiển phía dưới của phòng chờ -->
+      <div class="waiting-footer">
+        <div id="waitingHostControls" class="host-controls" style="display:none;">
+          <div class="host-badge">👑 Bạn là Chủ phòng</div>
+          <div class="host-btn-group">
+            <button id="btnWaitingAddBot" class="btn-muted btn-add-bot">🤖 + Thêm Bot Test</button>
+            <button id="btnWaitingStartGame" class="btn-start-game">▶ BẮT ĐẦU VÁN ĐẤU</button>
+          </div>
+        </div>
+        <div id="waitingGuestNotice" class="guest-notice" style="display:none;">
+          <div class="pulse-dot"></div>
+          <span id="waitingGuestText">Đang chờ Chủ phòng bấm Bắt đầu ván đấu... Hãy chuẩn bị sẵn sàng!</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastNotification" class="toast" style="display:none;"></div>
+
+  <!-- 3. MÀN HÌNH BẢN ĐỒ & TRẬN ĐẤU (Chỉ hiện khi Host bấm Bắt đầu ván đấu) -->
+  <main class="layout" id="gameLayout" style="display:none;">
     <section class="board-wrap">
       <svg id="gameBoard" viewBox="-21 -18.6 42 37.2" preserveAspectRatio="xMidYMid meet"></svg>
     </section>
@@ -40,11 +179,11 @@
       <h2>🃏 Thẻ Hỗ Trợ Trên Tay (Tối đa 4)</h2>
       <div id="handPanel" class="card"><small>Chưa vào phòng.</small></div>
 
-      <h2>🏆 Xếp Hạng & Người Chơi</h2>
-      <div id="playerList" class="card"><small>Trống.</small></div>
-
       <h2>📜 Nhật Ký Ván Đấu</h2>
       <div id="logPanel" class="card log-box"></div>
+
+      <h2>🏆 Xếp Hạng & Người Chơi</h2>
+      <div id="playerList" class="card"><small>Trống.</small></div>
 
       <h2>🗺️ Ô Đang Xem</h2>
       <div id="hexInfo" class="card"><small>Bấm vào bất kỳ ô nào để xem địa hình và khoảng cách đến Đích.</small></div>

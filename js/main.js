@@ -5,11 +5,11 @@ import {
 import { SUPPORT_CARD_DEFS, ZODIAC_DATA } from './cardsData.js';
 import { BoardRenderer } from './boardRenderer.js';
 import {
-  createRoom, joinRoom, addBotToRoom, subscribePublic,
+  createRoom, joinRoom, addBotToRoom, leaveRoom, subscribePublic,
   subscribePrivate, subscribeConnection, setHiddenChoice, toArray, normalizePublicState
 } from './roomSync.js';
 import {
-  startGame, pickStartHex, rollFourDice, rerollSelectedDice,
+  startGame, pickStartHex, rollThreeDice, rollFourDice, rerollSelectedDice,
   confirmDiceSplit, bendClockCard, proceedToStep4, chooseLinhKhi,
   resolveSkillChoice, useSavedSkill,
   playSupportCard, discardCardFromHand, declareHiddenSkill,
@@ -18,6 +18,7 @@ import {
   useCombatWeaponCard, combatPeace, combatYield, resolveCombatRoll,
   runBotStep
 } from './gameEngine.js';
+import { initStarfield } from './starfield.js';
 
 const graph = buildBoardGraph();
 let currentRoom = null;
@@ -25,7 +26,8 @@ let myPlayerId = null;
 let pubState = null;
 let privState = { hiddenChoice: 'A', hand: [] };
 let firebaseConnected = null;
-let selectedClockDice = [0, 1];
+let selectedMoveDie = 0;
+let selectedClockDice = [1, 2];
 let rerollPickIndices = [];
 let rerollMode = null; // null | { type: 'CARD', cardIndex } | { type: 'SKILL' }
 
@@ -167,21 +169,297 @@ document.addEventListener('click', async (event) => {
   }
 });
 
+let unsubPublic = null;
+let unsubPrivate = null;
+let toastTimer = null;
+let starfieldController = null;
+
+const ZODIAC_EMOJIS = {
+  'Tý': '🐭', 'Sửu': '🐂', 'Dần': '🐯', 'Mão': '🐱',
+  'Thìn': '🐲', 'Tỵ': '🐍', 'Ngọ': '🐴', 'Mùi': '🐐',
+  'Thân': '🐵', 'Dậu': '🐔', 'Tuất': '🐶', 'Hợi': '🐷'
+};
+
+const SEASON_NAMES = {
+  XUAN: 'Mùa Xuân',
+  HA: 'Mùa Hạ',
+  THU: 'Mùa Thu',
+  DONG: 'Mùa Đông'
+};
+
+function showToast(message) {
+  const toast = $('toastNotification');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.style.display = 'block';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.style.display = 'none';
+  }, 2500);
+}
+
+function updateScreenVisibility(state) {
+  const welcomeScreen = $('welcomeScreen');
+  const waitingScreen = $('lobbyWaitingScreen');
+  const gameLayout = $('gameLayout');
+  const roomInfoBar = $('roomInfoBar');
+  const roomBadge = $('roomBadge');
+  const topbar = $('gameTopbar');
+
+  if (!currentRoom || !state) {
+    if (welcomeScreen) welcomeScreen.style.display = 'flex';
+    if (waitingScreen) waitingScreen.style.display = 'none';
+    if (gameLayout) gameLayout.style.display = 'none';
+    if (topbar) topbar.style.display = 'none';
+    if (roomInfoBar) roomInfoBar.style.display = 'none';
+    if (roomBadge) roomBadge.textContent = 'Chưa vào phòng';
+    if (starfieldController) starfieldController.resume();
+    return;
+  }
+
+  // Tạm dừng vẽ starfield khi đã vào phòng để tối ưu tài nguyên máy
+  if (starfieldController) starfieldController.pause();
+
+  if (roomBadge) roomBadge.textContent = `Phòng: ${currentRoom}`;
+
+  if (state.status === 'lobby') {
+    // 2. Màn hình Phòng Chờ (Lobby)
+    if (welcomeScreen) welcomeScreen.style.display = 'none';
+    if (waitingScreen) waitingScreen.style.display = 'flex';
+    if (gameLayout) gameLayout.style.display = 'none';
+    if (topbar) topbar.style.display = 'none';
+    if (roomInfoBar) roomInfoBar.style.display = 'none';
+    renderWaitingRoom(state);
+  } else {
+    // 3. Màn hình Bản đồ & Trận đấu (draft | playing | finished)
+    if (welcomeScreen) welcomeScreen.style.display = 'none';
+    if (waitingScreen) waitingScreen.style.display = 'none';
+    if (gameLayout) gameLayout.style.display = 'grid';
+    if (topbar) topbar.style.display = 'flex';
+    if (roomInfoBar) roomInfoBar.style.display = 'flex';
+  }
+}
+
+function renderWaitingRoom(state) {
+  if (!state || state.status !== 'lobby') return;
+
+  const roomCodeEl = $('waitingRoomCodeText');
+  if (roomCodeEl) roomCodeEl.textContent = currentRoom || '----';
+
+  const players = state.players || {};
+  const playerList = Object.values(players);
+  const count = playerList.length;
+
+  const countEl = $('waitingPlayerCount');
+  if (countEl) countEl.textContent = `${count}/12`;
+
+  const me = players[myPlayerId];
+  const isHost = state.hostId === myPlayerId;
+
+  // 1. Render Cột Linh Thú Của Bạn & Kỹ Năng Ẩn
+  const myCardEl = $('waitingMyZodiacCard');
+  if (myCardEl) {
+    if (me) {
+      const emoji = ZODIAC_EMOJIS[me.zodiac] || '🐾';
+      const zInfo = ZODIAC_DATA[me.zodiac];
+      const seasonName = SEASON_NAMES[zInfo.season] || zInfo.season;
+      const isPickA = privState.hiddenChoice === 'A';
+
+      myCardEl.innerHTML = `
+        <div class="my-zodiac-header">
+          <div class="my-zodiac-avatar" style="background:${me.color}; box-shadow: 0 0 24px ${me.color}88;">
+            ${emoji}
+          </div>
+          <div class="my-zodiac-title">
+            <div class="my-zodiac-label">LINH THÚ ĐẠI DIỆN</div>
+            <h3>${me.zodiac}</h3>
+            <div class="my-zodiac-badges">
+              <span class="zodiac-meta-pill">⏰ Giờ ${zInfo.hours[0]}h & ${zInfo.hours[1]}h</span>
+              <span class="zodiac-meta-pill">Đắc địa: <strong>${seasonName}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="skills-overview-frameless">
+          <div class="skill-flow-item thien">
+            <div class="skill-flow-tag">☀️ Thiên – ${zInfo.thien.name} <small>[${zInfo.thien.type}]</small></div>
+            <div class="skill-flow-desc">${zInfo.thien.desc}</div>
+          </div>
+          <div class="skill-flow-item dia">
+            <div class="skill-flow-tag">🌙 Địa – ${zInfo.dia.name} <small>[${zInfo.dia.type}]</small></div>
+            <div class="skill-flow-desc">${zInfo.dia.desc}</div>
+          </div>
+        </div>
+
+        <div class="secret-choice-frameless">
+          <div class="secret-choice-header">
+            <span>🔒 Lựa chọn Kỹ Năng Ẩn (Bí Mật)</span>
+            <small>Chỉ riêng bạn thấy • Kích hoạt bất ngờ</small>
+          </div>
+
+          <div class="hidden-cards-row">
+            <button id="waitingPickA" class="hidden-card-btn ${isPickA ? 'selected' : ''}">
+              <div class="hidden-card-top">
+                <span class="hidden-var-name">Biến thể A: ${zInfo.hiddenA.name}</span>
+                ${isPickA ? '<span class="hidden-selected-badge">ĐANG CHỌN ✔</span>' : ''}
+              </div>
+              <div class="hidden-card-desc">${zInfo.hiddenA.desc}</div>
+            </button>
+
+            <button id="waitingPickB" class="hidden-card-btn ${!isPickA ? 'selected' : ''}">
+              <div class="hidden-card-top">
+                <span class="hidden-var-name">Biến thể B: ${zInfo.hiddenB.name}</span>
+                ${!isPickA ? '<span class="hidden-selected-badge">ĐANG CHỌN ✔</span>' : ''}
+              </div>
+              <div class="hidden-card-desc">${zInfo.hiddenB.desc}</div>
+            </button>
+          </div>
+
+          <div class="secret-riddle-quote">
+            💡 <em>Câu đố khi kích hoạt: “${zInfo.riddle}”</em>
+          </div>
+        </div>
+      `;
+
+      $('waitingPickA')?.addEventListener('click', () => {
+        setHiddenChoice(currentRoom, myPlayerId, 'A');
+        privState.hiddenChoice = 'A';
+        renderWaitingRoom(pubState);
+      });
+      $('waitingPickB')?.addEventListener('click', () => {
+        setHiddenChoice(currentRoom, myPlayerId, 'B');
+        privState.hiddenChoice = 'B';
+        renderWaitingRoom(pubState);
+      });
+    } else {
+      myCardEl.innerHTML = `<p style="color:rgba(255,255,255,0.6);padding:16px;">Đang kết nối dữ liệu người chơi...</p>`;
+    }
+  }
+
+  // 2. Render Cột Danh Sách Người Chơi
+  const rosterEl = $('waitingRosterList');
+  if (rosterEl) {
+    const ORDER_12 = ['Tý', 'Sửu', 'Dần', 'Mão', 'Thìn', 'Tỵ', 'Ngọ', 'Mùi', 'Thân', 'Dậu', 'Tuất', 'Hợi'];
+    const takenZodiacs = new Set(playerList.map((p) => p.zodiac));
+
+    // Thanh điểm danh 12 con giáp (Zodiac Constellation Tracker)
+    let dotsHtml = `<div class="zodiac-dots-tracker">`;
+    ORDER_12.forEach((z) => {
+      const isTaken = takenZodiacs.has(z);
+      const emoji = ZODIAC_EMOJIS[z] || '🐾';
+      dotsHtml += `
+        <div class="zodiac-dot-pill ${isTaken ? 'is-active' : ''}" title="${z}: ${isTaken ? 'Đã có người nhận' : 'Còn trống'}">
+          <span class="dot-emoji">${emoji}</span>
+          <span class="dot-name">${z}</span>
+        </div>
+      `;
+    });
+    dotsHtml += `</div>`;
+
+    // Danh sách thẻ người chơi đã kết nối
+    let playersHtml = `<div class="roster-cards-list">`;
+    playerList.forEach((p) => {
+      const isMe = p.id === myPlayerId;
+      const isPlayerHost = p.id === state.hostId;
+      const emoji = ZODIAC_EMOJIS[p.zodiac] || '🐾';
+      playersHtml += `
+        <div class="slot-card ${isMe ? 'is-me' : ''}">
+          <div class="slot-avatar" style="background:${p.color}; box-shadow: 0 0 14px ${p.color}88;">
+            ${emoji}
+            <span class="status-pulse-dot" title="Sẵn sàng"></span>
+          </div>
+          <div class="slot-info">
+            <div class="slot-name-row">
+              <span class="slot-name" title="${p.name}">${p.name}</span>
+              ${isMe ? '<span class="badge-you">Bạn</span>' : ''}
+              ${isPlayerHost ? '<span class="badge-host">Chủ phòng</span>' : ''}
+              ${p.isBot ? '<span class="badge-bot">Bot</span>' : ''}
+            </div>
+            <div class="slot-sub">
+              <span class="slot-zodiac-text">Linh thú: <strong>${p.zodiac}</strong></span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    playersHtml += `</div>`;
+
+    // Thay vì 11 ô vuông nét đứt lặp lại nhàm chán, hiển thị banner mời / slot sáng tạo
+    const emptyCount = 12 - count;
+    let inviteHtml = '';
+    if (emptyCount > 0) {
+      inviteHtml = `
+        <div class="roster-empty-invite">
+          <div class="invite-icon">✨</div>
+          <div class="invite-content">
+            <div class="invite-title">Còn <strong>${emptyCount} vị trí linh thú</strong> đang chờ</div>
+            <div class="invite-sub">Chia sẻ mã <code class="invite-code">${currentRoom}</code> để bạn bè cùng so tài hoặc thêm Bot để bắt đầu ngay!</div>
+          </div>
+        </div>
+      `;
+    }
+
+    rosterEl.innerHTML = dotsHtml + playersHtml + inviteHtml;
+  }
+
+  // 3. Render Thanh Thao Tác Phía Dưới (Host vs Guest)
+  const hostCtrl = $('waitingHostControls');
+  const guestNotice = $('waitingGuestNotice');
+  const guestText = $('waitingGuestText');
+
+  if (isHost) {
+    if (hostCtrl) hostCtrl.style.display = 'flex';
+    if (guestNotice) guestNotice.style.display = 'none';
+  } else {
+    if (hostCtrl) hostCtrl.style.display = 'none';
+    if (guestNotice) guestNotice.style.display = 'flex';
+    if (guestText) {
+      const hostPlayer = players[state.hostId];
+      guestText.textContent = `Đang chờ Chủ phòng (${hostPlayer?.name || 'Chủ phòng'}) bấm Bắt đầu ván đấu... Hãy chuẩn bị sẵn sàng!`;
+    }
+  }
+}
+
+async function handleLeaveRoom() {
+  if (!currentRoom) return;
+  const ok = confirm('Bạn có chắc chắn muốn rời phòng?');
+  if (!ok) return;
+
+  try {
+    if (unsubPublic) { unsubPublic(); unsubPublic = null; }
+    if (unsubPrivate) { unsubPrivate(); unsubPrivate = null; }
+    await leaveRoom(currentRoom, myPlayerId);
+  } catch (err) {
+    console.warn('Lỗi khi rời phòng:', err);
+  } finally {
+    currentRoom = null;
+    pubState = null;
+    privState = { hiddenChoice: 'A', hand: [] };
+    updateScreenVisibility(null);
+    showToast('Đã rời phòng.');
+  }
+}
+
 function enterRoom(roomCode, playerId) {
+  if (unsubPublic) { unsubPublic(); unsubPublic = null; }
+  if (unsubPrivate) { unsubPrivate(); unsubPrivate = null; }
+
   currentRoom = roomCode;
   myPlayerId = playerId;
-  $('roomBadge').textContent = `Phòng: ${roomCode}`;
-  $('lobbyBar').style.display = 'none';
-  $('roomInfoBar').style.display = 'flex';
 
-  subscribePublic(roomCode, (data) => {
+  updateScreenVisibility(pubState);
+
+  unsubPublic = subscribePublic(roomCode, (data) => {
     pubState = data;
     renderAll();
   });
-  subscribePrivate(roomCode, playerId, (data) => {
+  unsubPrivate = subscribePrivate(roomCode, playerId, (data) => {
     privState = data || { hiddenChoice: 'A', hand: [] };
     renderHand();
     renderActionPanel();
+    if (pubState?.status === 'lobby') {
+      renderWaitingRoom(pubState);
+    }
   });
   subscribeConnection((connected) => {
     firebaseConnected = connected;
@@ -191,6 +469,10 @@ function enterRoom(roomCode, playerId) {
 
 function renderAll() {
   if (!pubState) return;
+
+  // Cập nhật chế độ hiển thị màn hình (Lobby Waiting vs Map & Game Layout)
+  updateScreenVisibility(pubState);
+
   const players = pubState.players || {};
   const activeId = pubState.status === 'playing' ? pubState.turn?.playerId
                  : (pubState.status === 'draft' ? toArray(pubState.draftOrder)[pubState.draftIdx] : null);
@@ -399,29 +681,35 @@ function renderActionPanel() {
   // ---- Bảng điều khiển riêng cho NGƯỜI ĐANG ĐI LƯỢT ----
   if (turn.phase === 'STEP1_ROLL') {
     html += `
-      <p style="margin:6px 0;"><strong>Bước 1:</strong> Tung 4 viên xúc xắc dùng chung.</p>
-      <button id="btnRoll4d6" style="width:100%;">🎲 Tung 4 Xúc Xắc (4d6)</button>
+      <p style="margin:6px 0;"><strong>Bước 1:</strong> Tung 3 viên xúc xắc dùng chung.</p>
+      <button id="btnRollDice" class="btn-green" style="width:100%;font-size:1.02rem;padding:12px;font-weight:800;">🎲 Tung 3 Xúc Xắc (3d6)</button>
     `;
   } else if (turn.phase === 'STEP2_SPLIT') {
     const dice = toArray(turn.dice);
-    if (selectedClockDice.length !== 2) selectedClockDice = [0, 1];
-    const moveIdx = [0, 1, 2, 3].filter(i => !selectedClockDice.includes(i));
-    const cSum = dice[selectedClockDice[0]] + dice[selectedClockDice[1]];
-    const mSum = dice[moveIdx[0]] + dice[moveIdx[1]];
+    if (selectedMoveDie < 0 || selectedMoveDie > 2) selectedMoveDie = 0;
+    const moveIdx = selectedMoveDie;
+    const clockIndices = [0, 1, 2].filter(i => i !== moveIdx);
+    const cSum = (dice[clockIndices[0]] || 0) + (dice[clockIndices[1]] || 0);
+    const mSum = dice[moveIdx] || 0;
     const hasFreeReroll = toArray(me.pendingSelf).includes('HOI_THIEN') && !turn.rerolledFree;
 
     html += `
-      <p style="margin:6px 0;"><strong>Bước 2:</strong> ${rerollMode ? 'Chọn 1–2 viên muốn TUNG LẠI rồi bấm xác nhận:' : 'Bấm chọn đúng <b>2 viên Quay Kim (đỏ)</b>; 2 viên còn lại là <b>Di Chuyển MP (xanh)</b>:'}</p>
+      <p style="margin:6px 0;"><strong>Bước 2:</strong> ${
+        rerollMode
+          ? 'Chọn 1–2 viên muốn <b>TUNG LẠI</b> rồi bấm xác nhận:'
+          : 'Bấm chọn <b>1 viên Di chuyển (MP – xanh)</b>; 2 viên còn lại sẽ dùng để <b>Quay Kim Đồng Hồ (đỏ)</b>:'
+      }</p>
       <div class="dice-row">
         ${dice.map((val, idx) => {
-          const isClock = selectedClockDice.includes(idx);
+          const isMove = idx === moveIdx;
           const isReroll = rerollPickIndices.includes(idx);
-          const cls = rerollMode ? (isReroll ? 'die-reroll' : '') : (isClock ? 'die-clock' : 'die-move');
-          return `<button class="die-btn ${cls}" data-idx="${idx}">${val}<small>${rerollMode ? (isReroll ? 'Lại' : '') : (isClock ? 'Kim' : 'MP')}</small></button>`;
+          const cls = rerollMode ? (isReroll ? 'die-reroll' : '') : (isMove ? 'die-move' : 'die-clock');
+          const label = rerollMode ? (isReroll ? 'Lại' : '') : (isMove ? '🏃 MP' : '⏰ Kim');
+          return `<button class="die-btn ${cls}" data-idx="${idx}" title="${isMove ? 'Viên này dùng để Di chuyển' : 'Viên này dùng để Quay kim'}">${val}<small>${label}</small></button>`;
         }).join('')}
       </div>
-      <div style="font-size:0.84rem;margin:6px 0;">
-        ⏰ Quay kim: <strong>+${cSum}h</strong> &nbsp;|&nbsp; 🏃 Di chuyển: <strong>${mSum} MP</strong>
+      <div style="font-size:0.86rem;margin:8px 0;background:rgba(255,255,255,0.05);padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);line-height:1.5;">
+        🏃 <strong>Di chuyển:</strong> <span style="color:#10b981;font-weight:800;font-size:0.95rem;">${mSum} MP</span> (Viên số ${moveIdx + 1}: ${mSum}) &nbsp;|&nbsp; ⏰ <strong>Quay kim:</strong> <span style="color:#ef4444;font-weight:800;font-size:0.95rem;">+${cSum}h</span> (Viên ${dice[clockIndices[0]]} + ${dice[clockIndices[1]]})
       </div>
       ${rerollMode ? `
         <div class="btn-row">
@@ -430,7 +718,7 @@ function renderActionPanel() {
         </div>
       ` : `
         <div class="btn-row">
-          <button id="btnConfirmSplit" class="btn-green">✔ Xác nhận & Quay Kim</button>
+          <button id="btnConfirmSplit" class="btn-green">✔ Xác nhận (Đi ${mSum} MP & Quay +${cSum}h)</button>
           ${hasFreeReroll ? '<button id="btnFreeReroll">🐷 Phúc Lộc (Tung lại)</button>' : ''}
         </div>
       `}
@@ -610,7 +898,9 @@ function renderActionPanel() {
     try { await useSavedSkill(currentRoom, pubState, graph, myPlayerId); } catch (e) { alert(e.message); }
   });
 
-  $('btnRoll4d6')?.addEventListener('click', () => rollFourDice(currentRoom, pubState));
+  const onRollDice = () => rollThreeDice(currentRoom, pubState);
+  $('btnRollDice')?.addEventListener('click', onRollDice);
+  $('btnRoll4d6')?.addEventListener('click', onRollDice);
   document.querySelectorAll('.die-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = Number(btn.dataset.idx);
@@ -618,12 +908,7 @@ function renderActionPanel() {
         if (rerollPickIndices.includes(idx)) rerollPickIndices = rerollPickIndices.filter(x => x !== idx);
         else if (rerollPickIndices.length < 2) rerollPickIndices.push(idx);
       } else {
-        if (selectedClockDice.includes(idx)) {
-          selectedClockDice = selectedClockDice.filter(x => x !== idx);
-        } else {
-          if (selectedClockDice.length >= 2) selectedClockDice.shift();
-          selectedClockDice.push(idx);
-        }
+        selectedMoveDie = idx;
       }
       renderActionPanel();
     });
@@ -649,8 +934,9 @@ function renderActionPanel() {
     } catch (e) { alert(e.message); }
   });
   $('btnConfirmSplit')?.addEventListener('click', () => {
-    if (selectedClockDice.length !== 2) return alert('Hãy chọn đúng 2 viên cho nhóm Quay Kim!');
-    confirmDiceSplit(currentRoom, pubState, selectedClockDice);
+    const clockIndices = [0, 1, 2].filter(i => i !== selectedMoveDie);
+    if (clockIndices.length !== 2) return alert('Hãy chọn đúng 1 viên cho Di chuyển và 2 viên cho Quay Kim!');
+    confirmDiceSplit(currentRoom, pubState, clockIndices);
   });
   $('btnToStep4')?.addEventListener('click', () => proceedToStep4(currentRoom, pubState, graph));
   $('lkMp')?.addEventListener('click', () => chooseLinhKhi(currentRoom, pubState, 'MP'));
@@ -922,7 +1208,7 @@ function renderLogs() {
 
 function phaseLabel(ph) {
   const map = {
-    STEP1_ROLL: 'Bước 1 (Tung 4d6)',
+    STEP1_ROLL: 'Bước 1 (Tung 3d6)',
     STEP2_SPLIT: 'Bước 2 (Chia xúc xắc)',
     STEP3_CLOCK: 'Bước 3 (Quay đồng hồ)',
     STEP4_ACTION: 'Bước 4 (Kỹ năng & Thẻ)',
@@ -950,20 +1236,118 @@ function buildGuideModal() {
   }).join('');
 }
 
-$('btnCreateRoom').addEventListener('click', async () => {
+// 1. Thao tác Màn hình Chào (Welcome Screen)
+$('btnWelcomeCreate')?.addEventListener('click', async () => {
+  const name = $('welcomePlayerName')?.value.trim() || 'Người chơi';
+  localStorage.setItem('zodiac_player_name', name);
+  try {
+    const { roomCode, playerId } = await createRoom(name);
+    enterRoom(roomCode, playerId);
+  } catch (e) {
+    alert('Lỗi tạo phòng: ' + e.message);
+  }
+});
+
+$('btnWelcomeJoin')?.addEventListener('click', async () => {
+  const code = $('welcomeRoomCode')?.value.trim().toUpperCase() || '';
+  const name = $('welcomePlayerName')?.value.trim() || 'Người chơi';
+  if (!code) {
+    alert('Vui lòng nhập mã phòng 4 ký tự!');
+    return;
+  }
+  localStorage.setItem('zodiac_player_name', name);
+  try {
+    const { roomCode, playerId } = await joinRoom(code, name);
+    enterRoom(roomCode, playerId);
+  } catch (e) {
+    alert(e.message);
+  }
+});
+
+$('welcomeRoomCode')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    $('btnWelcomeJoin')?.click();
+  }
+});
+
+$('welcomePlayerName')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    if ($('welcomeRoomCode')?.value.trim()) {
+      $('btnWelcomeJoin')?.click();
+    } else {
+      $('btnWelcomeCreate')?.click();
+    }
+  }
+});
+
+$('btnWelcomeGuide')?.addEventListener('click', () => {
+  $('guideModal').style.display = 'flex';
+});
+
+// 2. Thao tác Màn hình Phòng Chờ (Lobby Waiting Screen)
+$('btnCopyRoomCode')?.addEventListener('click', async () => {
+  if (!currentRoom) return;
+  try {
+    await navigator.clipboard.writeText(currentRoom);
+    showToast(`📋 Đã sao chép mã phòng: ${currentRoom}`);
+  } catch (err) {
+    prompt('Mã phòng của bạn (hãy nhấn Ctrl+C để sao chép):', currentRoom);
+  }
+});
+
+$('btnWaitingGuide')?.addEventListener('click', () => {
+  $('guideModal').style.display = 'flex';
+});
+
+$('btnWaitingLeave')?.addEventListener('click', handleLeaveRoom);
+$('btnTopbarLeave')?.addEventListener('click', handleLeaveRoom);
+
+$('btnWaitingAddBot')?.addEventListener('click', async () => {
+  try {
+    await addBotToRoom(currentRoom);
+    showToast('🤖 Đã thêm 1 Bot vào phòng!');
+  } catch (e) {
+    alert(e.message);
+  }
+});
+
+$('btnWaitingStartGame')?.addEventListener('click', async () => {
+  try {
+    await startGame(currentRoom, pubState);
+  } catch (e) {
+    alert('Không thể bắt đầu ván đấu: ' + e.message);
+  }
+});
+
+// 3. Tương thích ngược với thanh lobby cũ nếu dùng
+$('btnCreateRoom')?.addEventListener('click', async () => {
   try {
     const { roomCode, playerId } = await createRoom($('playerNameInput').value.trim());
     enterRoom(roomCode, playerId);
   } catch (e) { alert('Lỗi tạo phòng: ' + e.message); }
 });
 
-$('btnJoinRoom').addEventListener('click', async () => {
+$('btnJoinRoom')?.addEventListener('click', async () => {
   try {
     const { roomCode, playerId } = await joinRoom($('roomCodeInput').value.trim(), $('playerNameInput').value.trim());
     enterRoom(roomCode, playerId);
   } catch (e) { alert(e.message); }
 });
 
-$('btnOpenGuide').addEventListener('click', () => { $('guideModal').style.display = 'flex'; });
-$('btnCloseGuide').addEventListener('click', () => { $('guideModal').style.display = 'none'; });
+$('btnOpenGuide')?.addEventListener('click', () => { $('guideModal').style.display = 'flex'; });
+$('btnCloseGuide')?.addEventListener('click', () => { $('guideModal').style.display = 'none'; });
+
+// Khôi phục tên đã lưu từ lần chơi trước
+const savedPlayerName = localStorage.getItem('zodiac_player_name') || '';
+if (savedPlayerName) {
+  if ($('welcomePlayerName')) $('welcomePlayerName').value = savedPlayerName;
+  if ($('playerNameInput')) $('playerNameInput').value = savedPlayerName;
+}
+
 buildGuideModal();
+
+// Khởi tạo hiệu ứng nền vũ trụ Thời Không cho trang đầu (Starfield Warp Speed)
+starfieldController = initStarfield('welcomeScreen', 'starfieldCanvas');
+
+// Khởi tạo màn hình: Khi chưa vào phòng thì ẩn bản đồ và hiện màn hình Chào
+updateScreenVisibility(null);
