@@ -64,7 +64,7 @@ export const TERRAIN_META = {
   dong_plain:   { label: 'Đồng bằng Đông',    cost: 1,  passable: true,  fill: '#E8F4F8', stroke: '#AED6F1' },
   start:        { label: 'Ô Xuất Phát',       cost: 1,  passable: true,  fill: '#FFF9C4', stroke: '#FBC02D', text: 'XP' },
   river:        { label: 'Sông Suối',         cost: 99, passable: false, fill: '#42A5F5', stroke: '#1E88E5', text: '≈' },
-  lava:         { label: 'Ô Lửa',             cost: 1,  passable: true,  fill: '#FF6E40', stroke: '#D84315', text: '▲' },
+  lava:         { label: 'Ô Lửa',             cost: 2,  passable: true,  fill: '#FF6E40', stroke: '#D84315', text: '▲' },
   forest:       { label: 'Rừng Phong',        cost: 2,  passable: true,  fill: '#8D4925', stroke: '#5D4037', text: '2' },
   snow:         { label: 'Tuyết Dày',         cost: 3,  passable: true,  fill: '#CFD8DC', stroke: '#90A4AE', text: '3' },
   ice:          { label: 'Băng Trơn',         cost: 1,  passable: true,  fill: '#80DEEA', stroke: '#00ACC1', text: '»' },
