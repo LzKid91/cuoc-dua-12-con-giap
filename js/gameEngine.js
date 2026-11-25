@@ -57,66 +57,12 @@ function seasonRankForPlayer(graph, hexId, gateProgress = 0) {
 }
 
 function planSkillRelocation(state, graph, player, targetHexId) {
-  const fromHexId = player?.hexId;
-  const fromNode = graph.nodes[fromHexId];
+  const fromNode = graph.nodes[player?.hexId];
   const toNode = graph.nodes[targetHexId];
   if (!player || !fromNode || !toNode || !TERRAIN_META[toNode.terrain]?.passable) {
     return { allowed: false, reason: 'Vị trí dịch chuyển không hợp lệ.' };
   }
-
-  let nextProgress = Math.max(0, Math.min(12, Number(player.gateProgress) || 0));
-  let skippedCheckpoint = null;
-  let reachedCheckpoint = null;
-  const fromRank = seasonRankForPlayer(graph, fromHexId, nextProgress);
-  const toRank = seasonRankForPlayer(graph, targetHexId, nextProgress);
-  const targetCheckpointIndex = toNode.checkpointIndex;
-
-  // Nếu đích chính là checkpoint, tính chính xác số cổng phải bỏ qua trước khi chạm đích.
-  if (targetCheckpointIndex !== undefined && targetCheckpointIndex >= nextProgress) {
-    const skippedCount = targetCheckpointIndex - nextProgress;
-    if (skippedCount > 1) {
-      return {
-        allowed: false,
-        reason: `Không thể dịch chuyển tới checkpoint này vì phải bỏ qua ${skippedCount} cổng; mỗi lần dịch chuyển chỉ được bỏ qua tối đa 1.`
-      };
-    }
-    if (skippedCount === 1) {
-      skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
-    }
-    nextProgress = targetCheckpointIndex;
-    reachedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
-    nextProgress += 1;
-  } else if (toRank > fromRank && fromRank >= 0) {
-    // Dịch chuyển sang mùa sau: mọi checkpoint còn thiếu của mùa trước phải được tính.
-    const required = toRank * 3;
-    const missing = Math.max(0, required - nextProgress);
-    if (missing > 1) {
-      return {
-        allowed: false,
-        reason: `Không thể dịch chuyển tới ${SEASON_ORDER[toRank]}: còn thiếu ${missing} checkpoint trước đó; mỗi lần dịch chuyển chỉ được bỏ qua tối đa 1.`
-      };
-    }
-    if (missing === 1) {
-      skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
-      nextProgress += 1;
-    }
-  } else if (
-    toNode.checkpointIndex === undefined &&
-    toRank === fromRank &&
-    fromRank >= 0 &&
-    toNode.distToFinish < fromNode.distToFinish &&
-    nextProgress < (fromRank + 1) * 3
-  ) {
-    // Dịch chuyển tiến tới ô thường trong cùng mùa có thể bỏ qua đúng checkpoint kế tiếp.
-    skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
-    nextProgress += 1;
-  }
-
-  if (targetHexId === graph.finishId && nextProgress < 12) {
-    return { allowed: false, reason: 'Thiên Đình chỉ mở sau khi hoàn thành đủ 12 checkpoint.' };
-  }
-
-  return { allowed: true, nextProgress, skippedCheckpoint, reachedCheckpoint };
+  return { allowed: true };
 }
 
 function applySkillRelocation(state, graph, player, targetHexId, reason = 'Dịch chuyển') {
@@ -126,17 +72,10 @@ function applySkillRelocation(state, graph, player, targetHexId, reason = 'Dịc
     return false;
   }
   player.hexId = targetHexId;
-  player.gateProgress = plan.nextProgress;
-  if (targetHexId === graph.finishId && plan.nextProgress === 12) {
+  if (targetHexId === graph.finishId) {
     state.status = 'finished';
     state.winnerId = player.id;
-    addLog(state, `🏆 CHIẾN THẮNG! ${player.zodiac} dùng ${reason} hoàn thành 12 checkpoint và chạm Thiên Đình!`);
-  }
-  if (plan.skippedCheckpoint) {
-    addLog(state, `🌀 ${player.zodiac} dùng ${reason}, bỏ qua 1 checkpoint: ${plan.skippedCheckpoint.name} (${player.gateProgress}/12).`);
-  }
-  if (plan.reachedCheckpoint) {
-    addLog(state, `🏁 ${player.zodiac} chạm ${plan.reachedCheckpoint.name}! Tiến độ ${player.gateProgress}/12.`);
+    addLog(state, `🏆 CHIẾN THẮNG! ${player.zodiac} dùng ${reason} chạm Thiên Đình!`);
   }
   return true;
 }
@@ -154,24 +93,13 @@ function applySkillSwap(state, graph, player, target, reason = 'Hoán đổi') {
   const playerHex = player.hexId;
   player.hexId = target.hexId;
   target.hexId = playerHex;
-  player.gateProgress = playerPlan.nextProgress;
-  target.gateProgress = targetPlan.nextProgress;
 
   const finisher = player.hexId === graph.finishId ? player
     : (target.hexId === graph.finishId ? target : null);
-  if (finisher && finisher.gateProgress === 12) {
+  if (finisher) {
     state.status = 'finished';
     state.winnerId = finisher.id;
-    addLog(state, `🏆 CHIẾN THẮNG! ${finisher.zodiac} hoán đổi vị trí tới Thiên Đình sau khi hoàn thành 12 checkpoint!`);
-  }
-
-  for (const [moved, plan] of [[player, playerPlan], [target, targetPlan]]) {
-    if (plan.skippedCheckpoint) {
-      addLog(state, `🌀 ${moved.zodiac} dùng ${reason}, bỏ qua 1 checkpoint: ${plan.skippedCheckpoint.name} (${moved.gateProgress}/12).`);
-    }
-    if (plan.reachedCheckpoint) {
-      addLog(state, `🏁 ${moved.zodiac} chạm ${plan.reachedCheckpoint.name}! Tiến độ ${moved.gateProgress}/12.`);
-    }
+    addLog(state, `🏆 CHIẾN THẮNG! ${finisher.zodiac} hoán đổi vị trí tới Thiên Đình!`);
   }
   return true;
 }
@@ -1377,13 +1305,6 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
       movedSteps += 1;
       const node = graph.nodes[stepHex];
 
-      // Ghi nhận checkpoint theo đúng thứ tự khi đi qua từng ô.
-      if (node.checkpointIndex === p.gateProgress) {
-        const checkpoint = ALL_CHECKPOINTS[p.gateProgress];
-        p.gateProgress += 1;
-        if (checkpoint) addLog(state, `🏁 ${p.zodiac} vượt ${checkpoint.name}! Tiến độ ${p.gateProgress}/12.`);
-      }
-
       // 1. Trạm Rút Thẻ (đi qua hoặc dừng đều tính 1 lần mỗi ván)
       if ((node.terrain === 'station_sm' || node.terrain === 'station_big') && !p.claimedStations.includes(stepHex)) {
         const qty = node.terrain === 'station_big' ? 2 : 1;
@@ -1431,13 +1352,8 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
         }
       }
 
-      // 5. Đích Thiên Đình — yêu cầu đủ 12 checkpoint.
+      // 5. Đích Thiên Đình
       if (stepHex === graph.finishId) {
-        if ((p.gateProgress || 0) < 12) {
-          finalHex = prevStep;
-          addLog(state, `🚧 ${p.zodiac} chưa thể vào Thiên Đình vì còn thiếu checkpoint (${p.gateProgress || 0}/12)!`);
-          break;
-        }
         p.hexId = stepHex;
         state.status = 'finished';
         state.winnerId = pid;
@@ -1453,22 +1369,8 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
     if (graph.nodes[finalHex].terrain === 'ice') {
       const slid = computeIceSlide(graph, prevStep, finalHex);
       if (slid !== finalHex) {
-        const slideNode = graph.nodes[slid];
-        if (slideNode.checkpointIndex !== undefined && slideNode.checkpointIndex > (p.gateProgress || 0)) {
-          addLog(state, `🚧 Băng Trơn đưa ${p.zodiac} tới checkpoint chưa mở; cú trượt bị dừng lại.`);
-        } else {
-          if (slideNode.checkpointIndex === (p.gateProgress || 0)) {
-            const checkpoint = ALL_CHECKPOINTS[p.gateProgress || 0];
-            p.gateProgress = (p.gateProgress || 0) + 1;
-            if (checkpoint) addLog(state, `🏁 ${p.zodiac} trượt qua ${checkpoint.name}! Tiến độ ${p.gateProgress}/12.`);
-          }
-          if (slid === graph.finishId && (p.gateProgress || 0) < 12) {
-            addLog(state, `🚧 Băng Trơn không thể đưa ${p.zodiac} vào Thiên Đình khi chưa đủ 12 checkpoint.`);
-          } else {
-            finalHex = slid;
-            addLog(state, `❄️ Băng Trơn! ${p.zodiac} trượt thẳng thêm 1 ô!`);
-          }
-        }
+        finalHex = slid;
+        addLog(state, `❄️ Băng Trơn! ${p.zodiac} trượt thẳng thêm 1 ô!`);
         if (finalHex === graph.finishId) {
           p.hexId = finalHex;
           state.status = 'finished';

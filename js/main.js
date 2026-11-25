@@ -1,6 +1,7 @@
 import {
   buildBoardGraph, getReachableHexes, getChallengeZone,
-  TERRAIN_META, ZODIACS, START_HEXES, ALL_CHECKPOINTS
+  TERRAIN_META, ZODIACS, START_HEXES, ALL_CHECKPOINTS,
+  SEASON_ORDER, SEASONS
 } from './mapData.js';
 import { SUPPORT_CARD_DEFS, ZODIAC_DATA } from './cardsData.js';
 import { BoardRenderer } from './boardRenderer.js';
@@ -45,8 +46,7 @@ function handleHexHover(hexId) {
       const extraCost = pubState.blizzardRoundsLeft > 0 ? 1 : 0;
       const { reachable, bestCost, pathByHex } = getReachableHexes(graph, me.hexId, mp, {
         extraCost,
-        flatCostOne: pubState.turn.flatCostOne,
-        gateProgress: me.gateProgress ?? 12
+        flatCostOne: pubState.turn.flatCostOne
       });
 
       if (reachable.has(hexId)) {
@@ -65,7 +65,7 @@ function handleHexHover(hexId) {
       } else if (hexId !== me.hexId) {
         $('hexInfo').innerHTML = `
           <div style="color:#c62828;"><strong>🚫 Ngoài tầm đi lượt này</strong> (Hiện có: ${mp} MP)</div>
-          <strong>${meta.label}</strong> (${meta.passable ? meta.cost + ' MP' : 'Cấm đi'}) | Cách Đích: <strong>${node.distToFinish} ô</strong>
+          <strong>${meta.label}</strong> (${meta.passable ? meta.cost + ' MP' : 'Cấm đi'}) | Cách Đích: <strong>${node.distToFinish === Infinity ? '—' : node.distToFinish + ' ô'}</strong>
         `;
         return;
       }
@@ -531,12 +531,11 @@ function renderPlayerList() {
     const cd = p.cooldownTD > 0 ? '⏳Hồi chiêu' : '✅Sẵn sàng';
     const savedTag = p.savedSkill ? `<span class="badge-saved-skill" title="${p.savedSkill.desc}">💾 ${p.savedSkill.name}</span>` : '';
     const hiddenTag = p.hiddenRevealed ? `Ẩn ${p.revealedVariant}` : 'Ẩn: ?';
-    const gateProgress = Math.max(0, Math.min(12, Number(p.gateProgress) || 0));
     return `
       <div class="player-row ${isTurn ? 'active-turn' : ''}">
         <div>
           <strong style="color:${p.color}">#${idx + 1} ${p.zodiac}</strong> ${p.name} ${isMe ? '<b>(Bạn)</b>' : ''} ${isTurn ? '⭐' : ''}
-          <div class="sub-meta">${cd} ${savedTag} | ${hiddenTag} | 🃏${p.handCount || 0} | 🏁 ${gateProgress}/12</div>
+          <div class="sub-meta">${cd} ${savedTag} | ${hiddenTag} | 🃏${p.handCount || 0}</div>
         </div>
         <div class="right-meta">
           <span>❤️${p.hp}</span><br/>
@@ -801,8 +800,6 @@ function renderActionPanel() {
     const bestOption = moveOptions.length > 0 ? moveOptions[0] : null;
     const currentDist = graph.nodes[me.hexId]?.distToFinish ?? 999;
     const stationOptions = moveOptions.filter(o => o.node.terrain === 'station_sm' || o.node.terrain === 'station_big');
-    const gateProgress = Math.max(0, Math.min(12, Number(me.gateProgress) || 0));
-    const nextCheckpoint = ALL_CHECKPOINTS[gateProgress];
 
     html += `
       <div class="step5-banner">
@@ -811,10 +808,6 @@ function renderActionPanel() {
           <span style="font-size:0.8rem;color:#1b5e20;margin-left:6px;font-weight:600;">(${moveOptions.length} ô có thể đến)</span>
         </div>
         <small style="color:#5d4037;font-weight:600;">Cách Đích: <b>${currentDist === Infinity ? '—' : currentDist + ' ô'}</b></small>
-      </div>
-      <div style="font-size:0.78rem;background:#fff8e1;border:1px solid #f0cf6d;border-radius:7px;padding:6px 8px;margin:5px 0;color:#6d4c00;">
-        🏁 <b>Checkpoint: ${gateProgress}/12</b>
-        ${nextCheckpoint ? ` · Cổng kế tiếp: <b>${nextCheckpoint.name}</b>` : ' · Đã hoàn thành toàn bộ cổng!'}
       </div>
 
       <p style="margin:5px 0 8px;font-size:0.82rem;color:#3e2723;">

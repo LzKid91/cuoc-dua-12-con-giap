@@ -265,9 +265,6 @@ export class BoardRenderer {
       if (!isBridge) {
         this.renderHexSymbol(g, node, meta);
       }
-      if (node.checkpointIndex !== undefined) {
-        this.renderCheckpointMarker(g, node);
-      }
 
       g.addEventListener('click', () => this.onHexClick(node.id));
       if (this.onHexHover) {

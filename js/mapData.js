@@ -131,15 +131,6 @@ export function buildBoardGraph() {
     }
   }
 
-  // Đánh dấu 12 checkpoint theo đúng thứ tự Xuân → Hạ → Thu → Đông.
-  for (const checkpoint of ALL_CHECKPOINTS) {
-    const node = nodes[checkpoint.hexId];
-    if (!node) throw new Error(`Checkpoint không tồn tại trên bản đồ: ${checkpoint.hexId}`);
-    node.checkpointIndex = checkpoint.index;
-    node.checkpointLabel = checkpoint.name;
-    node.checkpointSeason = checkpoint.season;
-  }
-
   for (const node of Object.values(nodes)) {
     for (const [dq, dr] of DIRS) {
       const nid = keyOf(node.season, node.q + dq, node.r + dr);
@@ -214,33 +205,7 @@ function seasonRank(season) {
   return SEASON_ORDER.indexOf(season);
 }
 
-function canTraverseBridgeEdge(graph, bridgeId, fromId, toId, gateProgress) {
-  const bridge = graph.nodes[bridgeId];
-  if (!bridge?.endpoints || bridge.endpoints.length !== 2) return true;
-
-  const [a, b] = bridge.endpoints;
-  const seasonA = graph.nodes[a]?.season;
-  const seasonB = graph.nodes[b]?.season;
-  let fromSeason;
-  let toSeason;
-
-  if (fromId === bridgeId) {
-    toSeason = graph.nodes[toId]?.season;
-    fromSeason = toSeason === seasonA ? seasonB : seasonA;
-  } else {
-    fromSeason = graph.nodes[fromId]?.season;
-    toSeason = fromSeason === seasonA ? seasonB : seasonA;
-  }
-
-  const fromRank = seasonRank(fromSeason);
-  const toRank = seasonRank(toSeason);
-  if (fromRank < 0 || toRank < 0) return true;
-
-  // Backtracking qua cầu luôn được phép; tiến sang mùa mới phải hoàn thành
-  // đủ 3 checkpoint của mùa hiện tại.
-  if (toRank > fromRank) {
-    return gateProgress >= (fromRank + 1) * 3;
-  }
+function canTraverseBridgeEdge() {
   return true;
 }
 
@@ -280,22 +245,6 @@ export function getReachableHexes(graph, startId, maxMp, options = {}) {
       if (!meta?.passable) continue;
 
       let nextProgress = current.progress;
-      const checkpointIndex = target.checkpointIndex;
-      if (checkpointIndex !== undefined && checkpointIndex > current.progress) {
-        // Chỉ được đi vào checkpoint kế tiếp; checkpoint tương lai bị khóa.
-        continue;
-      }
-      if (checkpointIndex === current.progress) nextProgress += 1;
-
-      // Thiên Đình chỉ mở sau khi người chơi hoàn thành đủ 12 checkpoint.
-      if (nid === graph.finishId && nextProgress < 12) continue;
-
-      const bridgeId = graph.nodes[current.id].season === 'BRIDGE'
-        ? current.id
-        : (target.season === 'BRIDGE' ? nid : null);
-      if (bridgeId && !canTraverseBridgeEdge(graph, bridgeId, current.id, nid, nextProgress)) {
-        continue;
-      }
 
       const baseCost = flatCostOne ? 1 : meta.cost;
       const stepCost = Math.max(1, baseCost + extraCost);
