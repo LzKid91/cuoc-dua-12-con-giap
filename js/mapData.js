@@ -58,6 +58,7 @@ export const CHECKPOINTS_BY_ID = Object.fromEntries(
 
 export const TERRAIN_META = {
   xuan_plain:   { label: 'Đồng bằng Xuân',    cost: 1,  passable: true,  fill: '#DFF0D8', stroke: '#A3D9A5' },
+  flower_thicket:{ label: 'Bụi Hoa Dày',        cost: 2,  passable: true,  fill: '#F7DCE8', stroke: '#D98CAB', text: '2' },
   ha_plain:     { label: 'Đồng bằng Hạ',      cost: 1,  passable: true,  fill: '#FDEBD0', stroke: '#F5CBA7' },
   thu_plain:    { label: 'Đường mòn Thu',     cost: 1,  passable: true,  fill: '#F5E6CC', stroke: '#E59866' },
   dong_plain:   { label: 'Đồng bằng Đông',    cost: 1,  passable: true,  fill: '#E8F4F8', stroke: '#AED6F1' },
