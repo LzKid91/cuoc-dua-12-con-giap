@@ -2,6 +2,13 @@ import { TERRAIN_META, ZODIACS } from './mapData.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+const ZODIAC_ICONS = {
+  'Tý': '🐀', 'Sửu': '🐂', 'Dần': '🐅', 'Mão': '🐇',
+  'Thìn': '🐉', 'Tỵ': '🐍', 'Ngọ': '🐎', 'Mùi': '🐐',
+  'Thân': '🐒', 'Dậu': '🐓', 'Tuất': '🐕', 'Hợi': '🐖'
+};
+const ZODIAC_EMOJI_FONT = "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+
 function el(tag, attrs = {}, text = null) {
   const node = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
@@ -67,6 +74,9 @@ export class BoardRenderer {
     // 5. TOÀN BỘ 250 Ô LỤC GIÁC (LƯỚI Ô BẢN ĐỒ)
     this.renderHexGrid();
 
+    // 5B. ĐƯỜNG ĐUA GỢI Ý: nối lộ trình qua 12 checkpoint nhưng không khóa lựa chọn đường đi.
+    this.renderRaceTrail();
+
     // 6. ĐỒNG HỒ 24 GIỜ TRUNG TÂM (THIÊN 1-12h & ĐỊA 13-24h)
     this.renderClock();
 
@@ -107,6 +117,20 @@ export class BoardRenderer {
     gradWood.appendChild(el('stop', { offset: '100%', 'stop-color': '#4E342E' }));
     defs.appendChild(gradWood);
 
+    // Gradient nền đặc trưng cho bốn lục địa mùa.
+    const seasonGradients = [
+      ['gradSpring', '#F4FBEF', '#CBE9C7'],
+      ['gradSummer', '#FFF0DA', '#F5BE91'],
+      ['gradAutumn', '#F9E8D5', '#DFA06C'],
+      ['gradWinter', '#F0FAFF', '#B9E0F1']
+    ];
+    for (const [id, start, end] of seasonGradients) {
+      const gradient = el('linearGradient', { id, x1: '0%', y1: '0%', x2: '100%', y2: '100%' });
+      gradient.appendChild(el('stop', { offset: '0%', 'stop-color': start }));
+      gradient.appendChild(el('stop', { offset: '100%', 'stop-color': end }));
+      defs.appendChild(gradient);
+    }
+
     // Gradient Nửa Đêm Đồng Hồ (13-24h)
     const gradNight = el('linearGradient', { id: 'gradNight', x1: '0%', y1: '0%', x2: '100%', y2: '100%' });
     gradNight.appendChild(el('stop', { offset: '0%', 'stop-color': '#212A45' }));
@@ -119,10 +143,10 @@ export class BoardRenderer {
   renderContinentPlates() {
     const g = el('g', { 'pointer-events': 'none' });
     const plates = [
-      { cx: -11.5, cy: 9.0, fill: '#EAF7E6', stroke: '#5CB85C', label: 'XUAN' }, // Mùa Xuân (y=9 trong SVG)
-      { cx: -11.5, cy: -9.0, fill: '#FFF1E8', stroke: '#E57342', label: 'HA' },   // Mùa Hạ (y=-9 trong SVG)
-      { cx: 11.5, cy: -9.0, fill: '#F7EDE7', stroke: '#8E4D21', label: 'THU' },  // Mùa Thu
-      { cx: 11.5, cy: 9.0, fill: '#E8F5FD', stroke: '#2980B9', label: 'DONG' }   // Mùa Đông
+      { cx: -11.5, cy: 9.0, fill: 'url(#gradSpring)', stroke: '#5CB85C', label: 'XUAN' }, // Mùa Xuân
+      { cx: -11.5, cy: -9.0, fill: 'url(#gradSummer)', stroke: '#E57342', label: 'HA' }, // Mùa Hạ
+      { cx: 11.5, cy: -9.0, fill: 'url(#gradAutumn)', stroke: '#8E4D21', label: 'THU' }, // Mùa Thu
+      { cx: 11.5, cy: 9.0, fill: 'url(#gradWinter)', stroke: '#2980B9', label: 'DONG' } // Mùa Đông
     ];
 
     for (const p of plates) {
@@ -218,9 +242,11 @@ export class BoardRenderer {
       const node = nodes[b.id];
       if (!node) continue;
       const bg = el('g', { 'pointer-events': 'none' });
+      const isLongSafe = b.id.endsWith('_L');
       bg.appendChild(el('circle', {
         cx: node.x, cy: node.y, r: 0.88,
-        fill: '#EFEBE9', stroke: '#6D4C41', 'stroke-width': 0.11
+        fill: isLongSafe ? '#E6F1E6' : '#F9E7DB',
+        stroke: isLongSafe ? '#447A4D' : '#B05A32', 'stroke-width': 0.11
       }));
       bg.appendChild(el('text', {
         x: node.x, y: node.y - 0.28, 'text-anchor': 'middle',
@@ -294,20 +320,25 @@ export class BoardRenderer {
     };
     const color = seasonColors[node.checkpointSeason] || '#8D6E63';
 
-    // Huy hiệu nhỏ ở góc ô để nhận diện checkpoint nhưng không che địa hình.
+    // Cổng chặng dạng vòm nhỏ, đặt ở góc để không che biểu tượng địa hình.
+    g.appendChild(el('path', {
+      d: `M ${x - 0.24},${y + 0.16} V ${y - 0.10} Q ${x - 0.24},${y - 0.40} ${x},${y - 0.40} Q ${x + 0.24},${y - 0.40} ${x + 0.24},${y - 0.10} V ${y + 0.16}`,
+      fill: 'none', stroke: '#9B6B1D', 'stroke-width': 0.10,
+      'stroke-linecap': 'round', 'pointer-events': 'none'
+    }));
     g.appendChild(el('circle', {
-      cx: x, cy: y, r: 0.28,
-      fill: '#FFFDF5', stroke: '#D4AF37', 'stroke-width': 0.10,
+      cx: x, cy: y - 0.12, r: 0.30,
+      fill: '#FFFDF5', stroke: '#D4AF37', 'stroke-width': 0.09,
       'pointer-events': 'none'
     }));
     g.appendChild(el('circle', {
-      cx: x, cy: y, r: 0.20,
-      fill: color, stroke: '#FFFFFF', 'stroke-width': 0.04,
+      cx: x, cy: y - 0.12, r: 0.22,
+      fill: color, stroke: '#FFFFFF', 'stroke-width': 0.035,
       'pointer-events': 'none'
     }));
     g.appendChild(el('text', {
-      x, y: y + 0.09, 'text-anchor': 'middle',
-      fill: '#FFFFFF', 'font-size': '0.24', 'font-weight': '900',
+      x, y: y - 0.035, 'text-anchor': 'middle',
+      fill: '#FFFFFF', 'font-size': '0.25', 'font-weight': '900',
       'pointer-events': 'none'
     }, `${localNumber}`));
   }
@@ -315,102 +346,202 @@ export class BoardRenderer {
   renderHexSymbol(g, node, meta) {
     const { x, y } = node;
     const t = node.terrain;
+    const noPointer = { 'pointer-events': 'none' };
 
-    // 1. Ô Xuất Phát (XP)
+    // Ô xuất phát: cờ hiệu và bệ vàng.
     if (t === 'start') {
-      g.appendChild(el('polygon', {
-        points: `${x},${y - 0.48} ${x + 0.42},${y + 0.26} ${x - 0.42},${y + 0.26}`,
-        fill: '#FFC107', stroke: '#E65100', 'stroke-width': 0.07
+      g.appendChild(el('path', {
+        d: `M ${x - 0.08},${y + 0.38} V ${y - 0.38} L ${x + 0.42},${y - 0.24} L ${x - 0.08},${y - 0.06} Z`,
+        fill: '#C83A2B', stroke: '#8E271F', 'stroke-width': 0.055, ...noPointer
       }));
+      g.appendChild(el('circle', { cx: x - 0.08, cy: y + 0.38, r: 0.07, fill: '#8D6E63', ...noPointer }));
       g.appendChild(el('text', {
-        x: x, y: y + 0.17, 'text-anchor': 'middle',
-        fill: '#B71C1C', 'font-size': '0.38', 'font-weight': '900', 'pointer-events': 'none'
+        x: x - 0.02, y: y + 0.29, 'text-anchor': 'middle',
+        fill: '#8E4B13', 'font-size': '0.22', 'font-weight': '900', ...noPointer
       }, 'XP'));
       return;
     }
 
-    // 2. Ô Đích Thiên Đình (Ngôi đền hoàng kim / ★)
+    // Thiên Đình: cổng đền và ngôi sao chiến thắng.
     if (t === 'finish') {
-      g.appendChild(el('circle', { cx: x, cy: y, r: 0.74, fill: '#FFC107', stroke: '#B8860B', 'stroke-width': 0.11 }));
-      g.appendChild(el('polygon', {
-        points: `${x},${y - 0.52} ${x + 0.48},${y + 0.30} ${x - 0.48},${y + 0.30}`,
-        fill: '#D32F2F', stroke: '#B71C1C', 'stroke-width': 0.07
+      g.appendChild(el('path', {
+        d: `M ${x - 0.42},${y + 0.28} V ${y - 0.02} L ${x},${y - 0.42} L ${x + 0.42},${y - 0.02} V ${y + 0.28} Z`,
+        fill: '#F7D36A', stroke: '#9E6D17', 'stroke-width': 0.07, ...noPointer
+      }));
+      g.appendChild(el('path', {
+        d: `M ${x - 0.23},${y + 0.28} V ${y + 0.02} H ${x + 0.23} V ${y + 0.28}`,
+        fill: '#B43C2E', stroke: '#8D2823', 'stroke-width': 0.05, ...noPointer
       }));
       g.appendChild(el('text', {
-        x: x, y: y + 0.20, 'text-anchor': 'middle',
-        fill: '#FFF8E1', 'font-size': '0.46', 'font-weight': '900', 'pointer-events': 'none'
+        x, y: y + 0.10, 'text-anchor': 'middle',
+        fill: '#FFF8E1', 'font-size': '0.26', 'font-weight': '900', ...noPointer
       }, '★'));
       return;
     }
 
-    // 3. Sông Suối (≈)
+    // Sông Suối: dòng nước xanh có hai bờ gợn sóng, là ô không thể đi qua.
     if (t === 'river') {
       g.appendChild(el('path', {
-        d: `M ${x - 0.44},${y - 0.14} Q ${x - 0.22},${y - 0.30} ${x},${y - 0.14} T ${x + 0.44},${y - 0.14} M ${x - 0.44},${y + 0.14} Q ${x - 0.22},${y} ${x},${y + 0.14} T ${x + 0.44},${y + 0.14}`,
-        fill: 'none', stroke: '#FFFFFF', 'stroke-width': 0.15, 'stroke-linecap': 'round', 'pointer-events': 'none'
+        d: `M ${x - 0.48},${y - 0.25} Q ${x - 0.20},${y - 0.43} ${x},${y - 0.25} T ${x + 0.48},${y - 0.25}`,
+        fill: 'none', stroke: '#D9F7FF', 'stroke-width': 0.10, 'stroke-linecap': 'round', ...noPointer
+      }));
+      g.appendChild(el('path', {
+        d: `M ${x - 0.48},${y} Q ${x - 0.20},${y - 0.18} ${x},${y} T ${x + 0.48},${y}`,
+        fill: 'none', stroke: '#FFFFFF', 'stroke-width': 0.13, 'stroke-linecap': 'round', ...noPointer
+      }));
+      g.appendChild(el('path', {
+        d: `M ${x - 0.48},${y + 0.25} Q ${x - 0.20},${y + 0.07} ${x},${y + 0.25} T ${x + 0.48},${y + 0.25}`,
+        fill: 'none', stroke: '#D9F7FF', 'stroke-width': 0.10, 'stroke-linecap': 'round', ...noPointer
       }));
       return;
     }
 
-    // 4. Ô Lửa Mùa Hạ (▲ / ngọn lửa)
+    // Ô Lửa: khe nứt dung nham bao quanh ngọn lửa, không chỉ là chấm đỏ.
     if (t === 'lava') {
-      g.appendChild(el('circle', { cx: x, cy: y, r: 0.56, fill: '#E64A19', stroke: '#BF360C', 'stroke-width': 0.07 }));
       g.appendChild(el('path', {
-        d: `M ${x},${y - 0.40} Q ${x + 0.32},${y + 0.02} ${x + 0.18},${y + 0.26} Q ${x},${y + 0.40} ${x - 0.18},${y + 0.26} Q ${x - 0.32},${y + 0.02} ${x},${y - 0.40}`,
-        fill: '#FFEB3B', stroke: '#FF9800', 'stroke-width': 0.06, 'pointer-events': 'none'
+        d: `M ${x - 0.45},${y - 0.10} L ${x - 0.18},${y + 0.02} L ${x - 0.28},${y + 0.38} M ${x + 0.38},${y - 0.32} L ${x + 0.12},${y - 0.06} L ${x + 0.34},${y + 0.20}`,
+        fill: 'none', stroke: '#B93618', 'stroke-width': 0.12, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', ...noPointer
       }));
-      g.appendChild(el('circle', { cx: x, cy: y + 0.11, r: 0.11, fill: '#D84315', 'pointer-events': 'none' }));
+      g.appendChild(el('path', {
+        d: `M ${x},${y - 0.42} Q ${x + 0.30},${y - 0.02} ${x + 0.17},${y + 0.24} Q ${x},${y + 0.43} ${x - 0.17},${y + 0.24} Q ${x - 0.30},${y - 0.02} ${x},${y - 0.42} Z`,
+        fill: '#FFD84D', stroke: '#C54A1E', 'stroke-width': 0.055, ...noPointer
+      }));
+      g.appendChild(el('path', {
+        d: `M ${x},${y + 0.18} Q ${x - 0.12},${y + 0.02} ${x + 0.04},${y - 0.14} Q ${x + 0.20},${y + 0.06} ${x},${y + 0.18} Z`,
+        fill: '#FFF7C2', ...noPointer
+      }));
       return;
     }
 
-    // 5. Rừng Phong Mùa Thu (Hoa phong sao 8 cánh)
+    // Rừng Phong: lá phong đỏ có cuống, thể hiện rõ rừng lá đổi màu.
     if (t === 'forest') {
-      g.appendChild(el('circle', { cx: x, cy: y, r: 0.56, fill: '#7A3816', stroke: '#5D280C', 'stroke-width': 0.07 }));
       g.appendChild(el('path', {
-        d: `M ${x},${y - 0.36} L ${x + 0.09},${y - 0.09} L ${x + 0.36},${y} L ${x + 0.09},${y + 0.09} L ${x},${y + 0.36} L ${x - 0.09},${y + 0.09} L ${x - 0.36},${y} L ${x - 0.09},${y - 0.09} Z`,
-        fill: '#F5B041', stroke: '#D68910', 'stroke-width': 0.05, 'pointer-events': 'none'
+        d: `M ${x},${y - 0.42} L ${x + 0.12},${y - 0.18} L ${x + 0.40},${y - 0.20} L ${x + 0.25},${y + 0.02} L ${x + 0.38},${y + 0.20} L ${x + 0.08},${y + 0.14} L ${x},${y + 0.42} L ${x - 0.08},${y + 0.14} L ${x - 0.38},${y + 0.20} L ${x - 0.25},${y + 0.02} L ${x - 0.40},${y - 0.20} L ${x - 0.12},${y - 0.18} Z`,
+        fill: '#F6A23A', stroke: '#8E3D20', 'stroke-width': 0.055, ...noPointer
       }));
-      return;
-    }
-
-    // 6. Tuyết Dày Mùa Đông
-    if (t === 'snow') {
       g.appendChild(el('path', {
-        d: `M ${x},${y - 0.34} L ${x},${y + 0.34} M ${x - 0.30},${y - 0.17} L ${x + 0.30},${y + 0.17} M ${x - 0.30},${y + 0.17} L ${x + 0.30},${y - 0.17}`,
-        fill: 'none', stroke: '#546E7A', 'stroke-width': 0.09, 'stroke-linecap': 'round', 'pointer-events': 'none'
+        d: `M ${x},${y + 0.12} L ${x + 0.18},${y + 0.42}`,
+        stroke: '#754024', 'stroke-width': 0.055, ...noPointer
       }));
-      g.appendChild(el('circle', { cx: x, cy: y, r: 0.08, fill: '#FFFFFF', 'pointer-events': 'none' }));
-      return;
-    }
-
-    // 7. Băng Trơn Mùa Đông (2 đường trượt song song)
-    if (t === 'ice') {
-      g.appendChild(el('path', {
-        d: `M ${x - 0.34},${y + 0.28} L ${x + 0.28},${y - 0.34} M ${x - 0.20},${y + 0.36} L ${x + 0.36},${y - 0.20}`,
-        fill: 'none', stroke: '#FFFFFF', 'stroke-width': 0.14, 'stroke-linecap': 'round', 'pointer-events': 'none'
-      }));
-      return;
-    }
-
-    // 8. Trạm Rút Thẻ (+1, +2)
-    if (t === 'station_big' || t === 'station_sm') {
-      const isBig = t === 'station_big';
       g.appendChild(el('circle', {
-        cx: x, cy: y, r: isBig ? 0.58 : 0.48,
-        fill: '#FFC107', stroke: '#E65100', 'stroke-width': 0.09
+        cx: x + 0.39, cy: y - 0.36, r: 0.19,
+        fill: '#FFF5DF', stroke: '#A75B2C', 'stroke-width': 0.045, ...noPointer
       }));
       g.appendChild(el('text', {
-        x: x, y: y + 0.15, 'text-anchor': 'middle',
-        fill: '#3E2723', 'font-size': isBig ? '0.40' : '0.35', 'font-weight': '900', 'pointer-events': 'none'
+        x: x + 0.39, y: y - 0.29, 'text-anchor': 'middle',
+        fill: '#8B451F', 'font-size': '0.23', 'font-weight': '900', ...noPointer
+      }, '2'));
+      return;
+    }
+
+    // Tuyết Dày: các ụ tuyết xếp tầng nổi cao, kèm mức tiêu hao 3 MP.
+    if (t === 'snow') {
+      g.appendChild(el('path', {
+        d: `M ${x - 0.48},${y + 0.25} Q ${x - 0.26},${y - 0.08} ${x - 0.06},${y + 0.14} Q ${x + 0.17},${y - 0.22} ${x + 0.48},${y + 0.25} Z`,
+        fill: '#A8D7EC', stroke: '#75B4D0', 'stroke-width': 0.055, ...noPointer
+      }));
+      g.appendChild(el('path', {
+        d: `M ${x - 0.34},${y + 0.20} Q ${x - 0.18},${y - 0.10} ${x + 0.02},${y + 0.08} Q ${x + 0.22},${y - 0.12} ${x + 0.37},${y + 0.20} Z`,
+        fill: '#FFFFFF', stroke: '#C4E6F4', 'stroke-width': 0.04, ...noPointer
+      }));
+      g.appendChild(el('circle', {
+        cx: x + 0.38, cy: y - 0.37, r: 0.19,
+        fill: '#FFFFFF', stroke: '#6EAAC5', 'stroke-width': 0.045, ...noPointer
+      }));
+      g.appendChild(el('text', {
+        x: x + 0.38, y: y - 0.30, 'text-anchor': 'middle',
+        fill: '#276A8A', 'font-size': '0.23', 'font-weight': '900', ...noPointer
+      }, '3'));
+      return;
+    }
+
+    // Băng Trơn: mặt băng phản quang, vết nứt và mũi tên chỉ hướng trượt.
+    if (t === 'ice') {
+      g.appendChild(el('path', {
+        d: `M ${x - 0.42},${y + 0.30} L ${x + 0.22},${y - 0.34} M ${x - 0.20},${y + 0.40} L ${x + 0.42},${y - 0.22}`,
+        fill: 'none', stroke: '#FFFFFF', 'stroke-width': 0.15, 'stroke-linecap': 'round', ...noPointer
+      }));
+      g.appendChild(el('path', {
+        d: `M ${x + 0.10},${y - 0.24} L ${x + 0.29},${y - 0.40} L ${x + 0.26},${y - 0.13}`,
+        fill: 'none', stroke: '#078DAA', 'stroke-width': 0.075, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', ...noPointer
+      }));
+      return;
+    }
+
+    // Trạm rút thẻ.
+    if (t === 'station_big' || t === 'station_sm') {
+      const isBig = t === 'station_big';
+      g.appendChild(el('path', {
+        d: `M ${x},${y - 0.45} L ${x + 0.42},${y - 0.22} L ${x + 0.42},${y + 0.22} L ${x},${y + 0.45} L ${x - 0.42},${y + 0.22} L ${x - 0.42},${y - 0.22} Z`,
+        fill: '#FFD35A', stroke: '#B57818', 'stroke-width': 0.07, ...noPointer
+      }));
+      g.appendChild(el('text', {
+        x, y: y + 0.13, 'text-anchor': 'middle',
+        fill: '#56380F', 'font-size': isBig ? '0.40' : '0.34', 'font-weight': '900', ...noPointer
       }, isBig ? '+2' : '+1'));
       return;
     }
 
-    // 9. Ô Đồng bằng thông thường: thêm chấm hoa văn mờ nhạt
-    const dotColor = node.season === 'XUAN' ? '#81C784'
-                   : (node.season === 'HA' ? '#FFAB91'
-                   : (node.season === 'THU' ? '#D7CCC8' : '#B0BEC5'));
-    g.appendChild(el('circle', { cx: x, cy: y, r: 0.08, fill: dotColor, opacity: '0.6', 'pointer-events': 'none' }));
+    // Đồng bằng có hoa văn theo đúng mùa.
+    if (node.season === 'XUAN') {
+      for (let i = 0; i < 5; i++) {
+        const a = (i * Math.PI * 2) / 5;
+        g.appendChild(el('circle', {
+          cx: x + Math.cos(a) * 0.13, cy: y + Math.sin(a) * 0.13,
+          r: 0.10, fill: '#F5A9C2', opacity: 0.82, ...noPointer
+        }));
+      }
+      g.appendChild(el('circle', { cx: x, cy: y, r: 0.07, fill: '#D89036', ...noPointer }));
+    } else if (node.season === 'HA') {
+      g.appendChild(el('circle', { cx: x, cy: y, r: 0.12, fill: '#F6B84D', opacity: 0.78, ...noPointer }));
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3;
+        g.appendChild(el('line', {
+          x1: x + Math.cos(a) * 0.19, y1: y + Math.sin(a) * 0.19,
+          x2: x + Math.cos(a) * 0.30, y2: y + Math.sin(a) * 0.30,
+          stroke: '#E5A047', 'stroke-width': 0.045, ...noPointer
+        }));
+      }
+    } else if (node.season === 'THU') {
+      g.appendChild(el('path', {
+        d: `M ${x},${y - 0.22} Q ${x + 0.30},${y - 0.08} ${x + 0.08},${y + 0.18} Q ${x - 0.18},${y + 0.15} ${x},${y - 0.22} Z`,
+        fill: '#D88A3D', stroke: '#A85A2C', 'stroke-width': 0.04, ...noPointer
+      }));
+    } else {
+      g.appendChild(el('path', {
+        d: `M ${x},${y - 0.25} L ${x + 0.18},${y} L ${x},${y + 0.25} L ${x - 0.18},${y} Z`,
+        fill: '#D7EFF8', stroke: '#8ABFD4', 'stroke-width': 0.04, ...noPointer
+      }));
+    }
+  }
+
+  renderRaceTrail() {
+    const trailIds = [
+      'XUAN:2,-4','XUAN:2,-3','XUAN:1,-2','XUAN:1,-1','XUAN:0,0',
+      'XUAN:-1,1','XUAN:-2,1','XUAN:-3,1','XUAN:-4,1',
+      'XUAN:-4,2','XUAN:-3,2','XUAN:-3,3','XUAN:-4,4','BRIDGE:XH_L','HA:0,-4',
+      'HA:0,-3','HA:0,-2','HA:1,-2','HA:0,-1','HA:-1,0','HA:-1,1','HA:-1,2','HA:-1,3',
+      'HA:0,2','HA:1,1','HA:2,1','HA:3,1','HA:2,2','BRIDGE:HT_L','THU:-4,2',
+      'THU:-3,1','THU:-2,0','THU:-1,-1','THU:-1,-2','THU:0,-3','THU:0,-4',
+      'BRIDGE:TD_S','DONG:-4,4','DONG:-3,4','DONG:-2,3','DONG:-2,2','DONG:-2,1',
+      'DONG:-1,0','DONG:-1,-1','DONG:-1,-2','DONG:0,-3','DONG:1,-4','DONG:2,-4'
+    ];
+    const valid = trailIds.map(id => this.graph.nodes[id]).filter(Boolean);
+    if (valid.length < 2) return;
+    let d = '';
+    valid.forEach((node, index) => {
+      d += `${index === 0 ? 'M' : 'L'} ${node.x},${node.y} `;
+    });
+    const g = el('g', { 'pointer-events': 'none', opacity: '0.72' });
+    g.appendChild(el('path', {
+      d, fill: 'none', stroke: '#FFF3C2', 'stroke-width': 0.27,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+    }));
+    g.appendChild(el('path', {
+      d, fill: 'none', stroke: '#A36C1C', 'stroke-width': 0.13,
+      'stroke-dasharray': '0.20 0.16', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+    }));
+    this.svg.appendChild(g);
   }
 
   renderAbyss() {
@@ -480,14 +611,22 @@ export class BoardRenderer {
         'font-size': '0.25', 'font-weight': '900'
       }, `${hr}`));
 
-      // 2. Tên Con Giáp đại diện
+      // 2. Phù hiệu con giáp nhỏ trên viền ngoài của đồng hồ.
+      const zName = ZODIACS[(hr - 1) % 12];
+      const txIcon = Math.cos(rad) * 3.00;
+      const tyIcon = Math.sin(rad) * 3.00;
+      g.appendChild(el('text', {
+        x: txIcon, y: tyIcon + 0.11, 'text-anchor': 'middle',
+        'font-size': '0.34', 'font-family': ZODIAC_EMOJI_FONT
+      }, ZODIAC_ICONS[zName] || '•'));
+
+      // 3. Tên Con Giáp đại diện.
       const txZod = Math.cos(rad) * 2.68;
       const tyZod = Math.sin(rad) * 2.68;
-      const zName = ZODIACS[(hr - 1) % 12];
       g.appendChild(el('text', {
         x: txZod, y: tyZod + 0.09, 'text-anchor': 'middle',
         fill: isNight ? '#CFD8DC' : '#263238',
-        'font-size': '0.27', 'font-weight': '800'
+        'font-size': '0.24', 'font-weight': '800'
       }, zName));
     }
 
@@ -605,9 +744,10 @@ export class BoardRenderer {
         }));
 
         g.appendChild(el('text', {
-          x: circleX, y: circleY + 0.14, 'text-anchor': 'middle',
-          fill: '#212121', 'font-size': '0.32', 'font-weight': '900'
-        }, zName.substring(0, 1)));
+          x: circleX, y: circleY + 0.18, 'text-anchor': 'middle',
+          fill: '#212121', 'font-size': '0.50', 'font-weight': '900',
+          'font-family': ZODIAC_EMOJI_FONT
+        }, ZODIAC_ICONS[zName] || zName.substring(0, 1)));
 
         g.appendChild(el('text', {
           x: circleX, y: c.y + 2.04, 'text-anchor': 'middle',
