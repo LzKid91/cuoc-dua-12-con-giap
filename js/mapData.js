@@ -115,7 +115,7 @@ export function buildBoardGraph() {
       '2,-4': 'finish',
       '-3,3':'snow','-2,3':'snow','-1,3':'snow','-2,2':'snow','-1,2':'snow','0,2':'snow',
       '-2,1':'snow','-1,1':'snow','0,1':'snow','0,0':'snow','-1,0':'snow',
-      '1,-1':'snow','1,-2':'snow','0,-1':'snow','1,-3':'snow','2,-3':'snow',
+      '1,-1':'snow','1,-2':'snow','0,-1':'snow','0,-3':'snow','1,-3':'snow','2,-3':'snow',
       '1,3':'ice','2,2':'ice','2,1':'ice','3,0':'ice','3,-1':'ice','3,-2':'ice',
       '-3,1':'ice','-2,0':'ice','-1,-1':'ice','0,-2':'ice'
     }
