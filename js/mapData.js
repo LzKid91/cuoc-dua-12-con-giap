@@ -19,6 +19,43 @@ export const SEASONS = {
 
 export const START_HEXES = ['XUAN:0,-4', 'XUAN:1,-4', 'XUAN:2,-4', 'XUAN:3,-4', 'XUAN:4,-4'];
 
+export const SEASON_CHECKPOINTS = {
+  XUAN: [
+    { hexId: 'XUAN:0,0', name: 'Cổng Hoa Khởi Xuân' },
+    { hexId: 'XUAN:-4,1', name: 'Cổng Bờ Sông' },
+    { hexId: 'XUAN:-3,3', name: 'Cổng Vườn Đào' }
+  ],
+  HA: [
+    { hexId: 'HA:1,-2', name: 'Cổng Tro Nóng' },
+    { hexId: 'HA:-1,3', name: 'Cổng Dung Nham' },
+    { hexId: 'HA:3,1', name: 'Cổng Hỏa Sơn' }
+  ],
+  THU: [
+    { hexId: 'THU:-2,0', name: 'Cổng Rừng Ngoài' },
+    { hexId: 'THU:-1,-2', name: 'Cổng Rừng Sâu' },
+    { hexId: 'THU:0,-3', name: 'Cổng Lá Vàng' }
+  ],
+  DONG: [
+    { hexId: 'DONG:-2,3', name: 'Cổng Tuyết Trắng' },
+    { hexId: 'DONG:-2,1', name: 'Cổng Băng Ngầm' },
+    { hexId: 'DONG:-1,0', name: 'Cổng Băng Lam' }
+  ]
+};
+
+export const SEASON_ORDER = ['XUAN', 'HA', 'THU', 'DONG'];
+export const ALL_CHECKPOINTS = SEASON_ORDER.flatMap((season, seasonIndex) =>
+  SEASON_CHECKPOINTS[season].map((checkpoint, seasonGateIndex) => ({
+    ...checkpoint,
+    season,
+    seasonIndex,
+    seasonGateIndex,
+    index: seasonIndex * 3 + seasonGateIndex
+  }))
+);
+export const CHECKPOINTS_BY_ID = Object.fromEntries(
+  ALL_CHECKPOINTS.map(checkpoint => [checkpoint.hexId, checkpoint])
+);
+
 export const TERRAIN_META = {
   xuan_plain:   { label: 'Đồng bằng Xuân',    cost: 1,  passable: true,  fill: '#DFF0D8', stroke: '#A3D9A5' },
   ha_plain:     { label: 'Đồng bằng Hạ',      cost: 1,  passable: true,  fill: '#FDEBD0', stroke: '#F5CBA7' },
@@ -33,7 +70,7 @@ export const TERRAIN_META = {
   station_big:  { label: 'Trạm +2 Thẻ',       cost: 1,  passable: true,  fill: '#FFC107', stroke: '#FF8F00', text: '+2' },
   station_sm:   { label: 'Trạm +1 Thẻ',       cost: 1,  passable: true,  fill: '#FFE082', stroke: '#FFA000', text: '+1' },
   bridge_short: { label: 'Cầu Ngắn (Hiểm)',   cost: 1,  passable: true,  fill: '#BCAAA4', stroke: '#6D4C41', text: 'CẦU' },
-  bridge_long:  { label: 'Cầu Dài (An toàn)', cost: 1,  passable: true,  fill: '#A1887F', stroke: '#4E342E', text: 'CẦU' },
+  bridge_long:  { label: 'Cầu Dài (An toàn)', cost: 2,  passable: true,  fill: '#A1887F', stroke: '#4E342E', text: 'CẦU' },
   finish:       { label: 'Thiên Đình (Đích)', cost: 1,  passable: true,  fill: '#FFD54F', stroke: '#B8860B', text: '★' }
 };
 
@@ -92,6 +129,15 @@ export function buildBoardGraph() {
         nodes[id] = { id, season, q, r, x, y, terrain, neighbors: [], distToFinish: Infinity };
       }
     }
+  }
+
+  // Đánh dấu 12 checkpoint theo đúng thứ tự Xuân → Hạ → Thu → Đông.
+  for (const checkpoint of ALL_CHECKPOINTS) {
+    const node = nodes[checkpoint.hexId];
+    if (!node) throw new Error(`Checkpoint không tồn tại trên bản đồ: ${checkpoint.hexId}`);
+    node.checkpointIndex = checkpoint.index;
+    node.checkpointLabel = checkpoint.name;
+    node.checkpointSeason = checkpoint.season;
   }
 
   for (const node of Object.values(nodes)) {
@@ -164,41 +210,146 @@ export function getHexDistance(graph, idA, idB) {
   return Infinity;
 }
 
+function seasonRank(season) {
+  return SEASON_ORDER.indexOf(season);
+}
+
+function canTraverseBridgeEdge(graph, bridgeId, fromId, toId, gateProgress) {
+  const bridge = graph.nodes[bridgeId];
+  if (!bridge?.endpoints || bridge.endpoints.length !== 2) return true;
+
+  const [a, b] = bridge.endpoints;
+  const seasonA = graph.nodes[a]?.season;
+  const seasonB = graph.nodes[b]?.season;
+  let fromSeason;
+  let toSeason;
+
+  if (fromId === bridgeId) {
+    toSeason = graph.nodes[toId]?.season;
+    fromSeason = toSeason === seasonA ? seasonB : seasonA;
+  } else {
+    fromSeason = graph.nodes[fromId]?.season;
+    toSeason = fromSeason === seasonA ? seasonB : seasonA;
+  }
+
+  const fromRank = seasonRank(fromSeason);
+  const toRank = seasonRank(toSeason);
+  if (fromRank < 0 || toRank < 0) return true;
+
+  // Backtracking qua cầu luôn được phép; tiến sang mùa mới phải hoàn thành
+  // đủ 3 checkpoint của mùa hiện tại.
+  if (toRank > fromRank) {
+    return gateProgress >= (fromRank + 1) * 3;
+  }
+  return true;
+}
+
 export function getReachableHexes(graph, startId, maxMp, options = {}) {
-  const { extraCost = 0, flatCostOne = false } = options;
+  const {
+    extraCost = 0,
+    flatCostOne = false,
+    gateProgress: rawGateProgress = 12
+  } = options;
+  const gateProgress = Math.max(0, Math.min(12, Number(rawGateProgress) || 0));
+  const startNode = graph.nodes[startId];
+  if (!startNode || !TERRAIN_META[startNode.terrain]?.passable || maxMp < 0) {
+    return { reachable: new Set(), bestCost: {}, prev: {}, pathByHex: {}, gateProgressByHex: {} };
+  }
+
+  // Dijkstra trên trạng thái (ô hiện tại, tiến độ checkpoint). Nhờ vậy một
+  // lượt đủ MP có thể vượt liên tiếp nhiều checkpoint theo đúng thứ tự.
+  const makeKey = (id, progress) => `${id}|${progress}`;
+  const startKey = makeKey(startId, gateProgress);
+  const bestStateCost = new Map([[startKey, 0]]);
+  const previousState = new Map();
+  const stateData = new Map([[startKey, { id: startId, progress: gateProgress }]]);
+  const bestStateForHex = { [startId]: startKey };
   const bestCost = { [startId]: 0 };
-  const prev = {};
-  const pq = [{ id: startId, cost: 0 }];
+  const bestProgressForHex = { [startId]: gateProgress };
+  const pq = [{ key: startKey, id: startId, progress: gateProgress, cost: 0 }];
   const reachable = new Set();
 
   while (pq.length > 0) {
-    pq.sort((a, b) => a.cost - b.cost);
-    const { id, cost } = pq.shift();
-    if (cost > bestCost[id]) continue;
+    pq.sort((a, b) => a.cost - b.cost || b.progress - a.progress);
+    const current = pq.shift();
+    if (current.cost > bestStateCost.get(current.key)) continue;
 
-    for (const nid of graph.nodes[id].neighbors) {
+    for (const nid of graph.nodes[current.id].neighbors) {
       const target = graph.nodes[nid];
       const meta = TERRAIN_META[target.terrain];
-      if (!meta.passable) continue;
+      if (!meta?.passable) continue;
+
+      let nextProgress = current.progress;
+      const checkpointIndex = target.checkpointIndex;
+      if (checkpointIndex !== undefined && checkpointIndex > current.progress) {
+        // Chỉ được đi vào checkpoint kế tiếp; checkpoint tương lai bị khóa.
+        continue;
+      }
+      if (checkpointIndex === current.progress) nextProgress += 1;
+
+      // Thiên Đình chỉ mở sau khi người chơi hoàn thành đủ 12 checkpoint.
+      if (nid === graph.finishId && nextProgress < 12) continue;
+
+      const bridgeId = graph.nodes[current.id].season === 'BRIDGE'
+        ? current.id
+        : (target.season === 'BRIDGE' ? nid : null);
+      if (bridgeId && !canTraverseBridgeEdge(graph, bridgeId, current.id, nid, nextProgress)) {
+        continue;
+      }
 
       const baseCost = flatCostOne ? 1 : meta.cost;
       const stepCost = Math.max(1, baseCost + extraCost);
-      let nextCost = cost + stepCost;
+      let nextCost = current.cost + stepCost;
 
-      // Quy tắc Bước Tối Thiểu: từ ô xuất phát luôn bước được tối thiểu 1 ô hợp lệ
-      if (id === startId && maxMp >= 1 && stepCost > maxMp) {
+      // Bước Tối Thiểu: từ ô xuất phát luôn bước được tối thiểu 1 ô hợp lệ.
+      if (current.id === startId && current.cost === 0 && maxMp >= 1 && stepCost > maxMp) {
         nextCost = maxMp;
       }
 
-      if (nextCost <= maxMp && (bestCost[nid] === undefined || nextCost < bestCost[nid])) {
+      if (nextCost > maxMp) continue;
+
+      const nextKey = makeKey(nid, nextProgress);
+      if (nextCost >= (bestStateCost.get(nextKey) ?? Infinity)) continue;
+
+      bestStateCost.set(nextKey, nextCost);
+      previousState.set(nextKey, current.key);
+      stateData.set(nextKey, { id: nid, progress: nextProgress });
+      pq.push({ key: nextKey, id: nid, progress: nextProgress, cost: nextCost });
+      reachable.add(nid);
+
+      const currentBest = bestCost[nid] ?? Infinity;
+      const currentBestProgress = bestProgressForHex[nid] ?? -1;
+      if (nextCost < currentBest || (nextCost === currentBest && nextProgress > currentBestProgress)) {
         bestCost[nid] = nextCost;
-        prev[nid] = id;
-        reachable.add(nid);
-        if (nextCost < maxMp) pq.push({ id: nid, cost: nextCost });
+        bestProgressForHex[nid] = nextProgress;
+        bestStateForHex[nid] = nextKey;
       }
     }
   }
-  return { reachable, bestCost, prev };
+
+  const pathByHex = {};
+  const prev = {};
+  for (const [hexId, stateKey] of Object.entries(bestStateForHex)) {
+    if (hexId === startId) continue;
+    const path = [];
+    let cursor = stateKey;
+    while (cursor && cursor !== startKey) {
+      const info = stateData.get(cursor);
+      if (!info) break;
+      path.unshift(info.id);
+      cursor = previousState.get(cursor);
+    }
+    pathByHex[hexId] = path;
+    if (path.length > 0) prev[hexId] = path.length > 1 ? path[path.length - 2] : startId;
+  }
+
+  return {
+    reachable,
+    bestCost,
+    prev,
+    pathByHex,
+    gateProgressByHex: bestProgressForHex
+  };
 }
 
 export function reconstructPath(prev, startId, targetId) {

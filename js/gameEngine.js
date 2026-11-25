@@ -1,5 +1,6 @@
 import {
   ZODIACS, SEASON_BONUS_ZODIACS, START_HEXES, TERRAIN_META,
+  ALL_CHECKPOINTS, SEASON_ORDER,
   getHexDistance, getReachableHexes, reconstructPath,
   getChallengeZone, computePushBackHex, computeAdvanceHex, computeIceSlide
 } from './mapData.js';
@@ -27,6 +28,9 @@ function cloneState(s) {
   for (const p of Object.values(c.players || {})) {
     p.claimedStations = toArray(p.claimedStations);
     p.pendingSelf = toArray(p.pendingSelf);
+    // Phòng cũ từ v3.0 được mở khóa checkpoint để không làm hỏng ván đang diễn ra.
+    if (!Number.isInteger(p.gateProgress)) p.gateProgress = c.mapVersion === '3.1' ? 0 : 12;
+    p.gateProgress = Math.max(0, Math.min(12, p.gateProgress));
     p.statusFlags = p.statusFlags || {};
   }
   return c;
@@ -35,6 +39,146 @@ function cloneState(s) {
 function addLog(state, msg) {
   state.logs.unshift(`[V${state.round}] ${msg}`);
   if (state.logs.length > 35) state.logs.length = 35;
+}
+
+function seasonRankForPlayer(graph, hexId, gateProgress = 0) {
+  const node = graph.nodes[hexId];
+  if (!node) return -1;
+  const directRank = SEASON_ORDER.indexOf(node.season);
+  if (directRank >= 0) return directRank;
+  if (node.season === 'BRIDGE' && node.endpoints?.length === 2) {
+    const ranks = node.endpoints
+      .map(id => SEASON_ORDER.indexOf(graph.nodes[id]?.season))
+      .filter(rank => rank >= 0)
+      .sort((a, b) => a - b);
+    if (ranks.length === 2) return gateProgress >= (ranks[1] * 3) ? ranks[1] : ranks[0];
+  }
+  return -1;
+}
+
+function planSkillRelocation(state, graph, player, targetHexId) {
+  const fromHexId = player?.hexId;
+  const fromNode = graph.nodes[fromHexId];
+  const toNode = graph.nodes[targetHexId];
+  if (!player || !fromNode || !toNode || !TERRAIN_META[toNode.terrain]?.passable) {
+    return { allowed: false, reason: 'Vị trí dịch chuyển không hợp lệ.' };
+  }
+
+  let nextProgress = Math.max(0, Math.min(12, Number(player.gateProgress) || 0));
+  let skippedCheckpoint = null;
+  let reachedCheckpoint = null;
+  const fromRank = seasonRankForPlayer(graph, fromHexId, nextProgress);
+  const toRank = seasonRankForPlayer(graph, targetHexId, nextProgress);
+  const targetCheckpointIndex = toNode.checkpointIndex;
+
+  // Nếu đích chính là checkpoint, tính chính xác số cổng phải bỏ qua trước khi chạm đích.
+  if (targetCheckpointIndex !== undefined && targetCheckpointIndex >= nextProgress) {
+    const skippedCount = targetCheckpointIndex - nextProgress;
+    if (skippedCount > 1) {
+      return {
+        allowed: false,
+        reason: `Không thể dịch chuyển tới checkpoint này vì phải bỏ qua ${skippedCount} cổng; mỗi lần dịch chuyển chỉ được bỏ qua tối đa 1.`
+      };
+    }
+    if (skippedCount === 1) {
+      skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+    }
+    nextProgress = targetCheckpointIndex;
+    reachedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+    nextProgress += 1;
+  } else if (toRank > fromRank && fromRank >= 0) {
+    // Dịch chuyển sang mùa sau: mọi checkpoint còn thiếu của mùa trước phải được tính.
+    const required = toRank * 3;
+    const missing = Math.max(0, required - nextProgress);
+    if (missing > 1) {
+      return {
+        allowed: false,
+        reason: `Không thể dịch chuyển tới ${SEASON_ORDER[toRank]}: còn thiếu ${missing} checkpoint trước đó; mỗi lần dịch chuyển chỉ được bỏ qua tối đa 1.`
+      };
+    }
+    if (missing === 1) {
+      skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+      nextProgress += 1;
+    }
+  } else if (
+    toNode.checkpointIndex === undefined &&
+    toRank === fromRank &&
+    fromRank >= 0 &&
+    toNode.distToFinish < fromNode.distToFinish &&
+    nextProgress < (fromRank + 1) * 3
+  ) {
+    // Dịch chuyển tiến tới ô thường trong cùng mùa có thể bỏ qua đúng checkpoint kế tiếp.
+    skippedCheckpoint = ALL_CHECKPOINTS[nextProgress] || null;
+    nextProgress += 1;
+  }
+
+  if (targetHexId === graph.finishId && nextProgress < 12) {
+    return { allowed: false, reason: 'Thiên Đình chỉ mở sau khi hoàn thành đủ 12 checkpoint.' };
+  }
+
+  return { allowed: true, nextProgress, skippedCheckpoint, reachedCheckpoint };
+}
+
+function applySkillRelocation(state, graph, player, targetHexId, reason = 'Dịch chuyển') {
+  const plan = planSkillRelocation(state, graph, player, targetHexId);
+  if (!plan.allowed) {
+    addLog(state, `⛔ ${reason} của ${player?.zodiac || 'người chơi'} không thể thực hiện: ${plan.reason}`);
+    return false;
+  }
+  player.hexId = targetHexId;
+  player.gateProgress = plan.nextProgress;
+  if (targetHexId === graph.finishId && plan.nextProgress === 12) {
+    state.status = 'finished';
+    state.winnerId = player.id;
+    addLog(state, `🏆 CHIẾN THẮNG! ${player.zodiac} dùng ${reason} hoàn thành 12 checkpoint và chạm Thiên Đình!`);
+  }
+  if (plan.skippedCheckpoint) {
+    addLog(state, `🌀 ${player.zodiac} dùng ${reason}, bỏ qua 1 checkpoint: ${plan.skippedCheckpoint.name} (${player.gateProgress}/12).`);
+  }
+  if (plan.reachedCheckpoint) {
+    addLog(state, `🏁 ${player.zodiac} chạm ${plan.reachedCheckpoint.name}! Tiến độ ${player.gateProgress}/12.`);
+  }
+  return true;
+}
+
+function applySkillSwap(state, graph, player, target, reason = 'Hoán đổi') {
+  if (!player || !target) return false;
+  const playerPlan = planSkillRelocation(state, graph, player, target.hexId);
+  const targetPlan = planSkillRelocation(state, graph, target, player.hexId);
+  if (!playerPlan.allowed || !targetPlan.allowed) {
+    const failed = !playerPlan.allowed ? playerPlan : targetPlan;
+    addLog(state, `⛔ ${reason} không thể thực hiện: ${failed.reason}`);
+    return false;
+  }
+
+  const playerHex = player.hexId;
+  player.hexId = target.hexId;
+  target.hexId = playerHex;
+  player.gateProgress = playerPlan.nextProgress;
+  target.gateProgress = targetPlan.nextProgress;
+
+  const finisher = player.hexId === graph.finishId ? player
+    : (target.hexId === graph.finishId ? target : null);
+  if (finisher && finisher.gateProgress === 12) {
+    state.status = 'finished';
+    state.winnerId = finisher.id;
+    addLog(state, `🏆 CHIẾN THẮNG! ${finisher.zodiac} hoán đổi vị trí tới Thiên Đình sau khi hoàn thành 12 checkpoint!`);
+  }
+
+  for (const [moved, plan] of [[player, playerPlan], [target, targetPlan]]) {
+    if (plan.skippedCheckpoint) {
+      addLog(state, `🌀 ${moved.zodiac} dùng ${reason}, bỏ qua 1 checkpoint: ${plan.skippedCheckpoint.name} (${moved.gateProgress}/12).`);
+    }
+    if (plan.reachedCheckpoint) {
+      addLog(state, `🏁 ${moved.zodiac} chạm ${plan.reachedCheckpoint.name}! Tiến độ ${moved.gateProgress}/12.`);
+    }
+  }
+  return true;
+}
+
+function applySkillAdvance(state, graph, player, steps, reason = 'Kỹ năng tiến bước') {
+  const targetHexId = computeAdvanceHex(graph, player.hexId, steps);
+  return applySkillRelocation(state, graph, player, targetHexId, reason);
 }
 
 function getRankings(state, graph) {
@@ -135,15 +279,15 @@ async function applyDamage(roomCode, state, graph, playerId, reason) {
 }
 
 function placeTrap(state, hexId, type, ownerId) {
-  // Mỗi cầu chỉ chứa tối đa 1 token bẫy
+  // Cầu Dài là tuyến an toàn, không thể đặt bẫy.
+  if (hexId.startsWith('BRIDGE:') && hexId.endsWith('_L')) return false;
+  // Cầu Ngắn chỉ chứa tối đa 1 token bẫy.
   if (hexId.startsWith('BRIDGE:')) {
     state.traps = state.traps.filter(t => t.hexId !== hexId);
   }
   state.traps.push({ id: 'T_' + Date.now() + Math.random().toString(36).slice(2, 5), hexId, type, ownerId });
-  // Tối đa 4 token bẫy trên toàn bàn
-  while (state.traps.length > 4) {
-    state.traps.shift();
-  }
+  while (state.traps.length > 4) state.traps.shift();
+  return true;
 }
 
 function initNewTurn(state) {
@@ -218,6 +362,8 @@ export async function startGame(roomCode, rawState) {
   state.lastEvent = null;
   state.winnerId = null;
   state.combat = null;
+  state.mapVersion = '3.1';
+  for (const p of Object.values(state.players)) p.gateProgress = 0;
   state.callout = null;
 
   // Tung xúc xắc sắp thứ tự lượt
@@ -412,7 +558,7 @@ async function triggerEventCard(roomCode, state, graph, actorId) {
         const p = state.players[lid];
         const diff = Math.max(0, graph.nodes[p.hexId].distToFinish - leaderDist - 1);
         const steps = Math.min(6, diff);
-        if (steps > 0) p.hexId = computeAdvanceHex(graph, p.hexId, steps);
+        if (steps > 0) applySkillRelocation(state, graph, p, computeAdvanceHex(graph, p.hexId, steps), 'Huyết Chiến');
       }
       break;
     }
@@ -433,7 +579,7 @@ async function triggerEventCard(roomCode, state, graph, actorId) {
       break;
     case 'CUONG_PHONG':
       for (const p of playersArr) {
-        p.hexId = computeAdvanceHex(graph, p.hexId, 2);
+        applySkillRelocation(state, graph, p, computeAdvanceHex(graph, p.hexId, 2), 'Cuồng Phong');
         if (p.hexId === graph.finishId) {
           state.status = 'finished';
           state.winnerId = p.id;
@@ -520,10 +666,9 @@ async function triggerZodiacClockSkill(roomCode, state, graph, owner, isThien) {
     if (cleared === 0) owner.statusFlags.danRoarBonus = 2;
   } else if (z === 'Mão' && isThien) {
     if (nearest && graph.nodes[nearest.hexId].distToFinish < graph.nodes[owner.hexId].distToFinish) {
-      const tmp = owner.hexId;
-      owner.hexId = nearest.hexId;
-      nearest.hexId = tmp;
-      addLog(state, `🐇 Mão hoán đổi vị trí với ${nearest.zodiac}!`);
+      if (applySkillSwap(state, graph, owner, nearest, 'Ảo Ảnh')) {
+        addLog(state, `🐇 Mão hoán đổi vị trí với ${nearest.zodiac}!`);
+      }
     }
   } else if (z === 'Thìn' && isThien) {
     if (state.direction === -1) {
@@ -537,18 +682,19 @@ async function triggerZodiacClockSkill(roomCode, state, graph, owner, isThien) {
       return; // [Toàn cục] chưa đặt hồi chiêu đến khi quay lại Thìn
     }
   } else if (z === 'Thìn' && !isThien) {
-    placeTrap(state, owner.hexId, 'VUNG_CAM', owner.id);
+    if (!placeTrap(state, owner.hexId, 'VUNG_CAM', owner.id)) addLog(state, '🛡️ Cầu Dài an toàn: không thể đặt Vùng Cấm tại đây.');
   } else if (z === 'Tỵ' && !isThien) {
-    placeTrap(state, owner.hexId, 'DOC', owner.id);
+    if (!placeTrap(state, owner.hexId, 'DOC', owner.id)) addLog(state, '🛡️ Cầu Dài an toàn: không thể đặt Bẫy Độc tại đây.');
   } else if (z === 'Mùi' && isThien) {
-    owner.hexId = computeAdvanceHex(graph, owner.hexId, 1);
-    if (nearest) nearest.hexId = computeAdvanceHex(graph, nearest.hexId, 1);
+    applySkillRelocation(state, graph, owner, computeAdvanceHex(graph, owner.hexId, 1), 'Cầu Nguyện');
+    if (nearest) applySkillRelocation(state, graph, nearest, computeAdvanceHex(graph, nearest.hexId, 1), 'Cầu Nguyện');
   } else if (z === 'Thân' && isThien) {
     if (state.lastThienZodiac && state.lastThienZodiac !== 'Thìn') {
       addLog(state, `🐒 Thân sao chép kỹ năng Thiên của ${state.lastThienZodiac}!`);
       const fakeOwner = { ...owner, zodiac: state.lastThienZodiac };
       await triggerZodiacClockSkill(roomCode, state, graph, fakeOwner, true);
       owner.hexId = fakeOwner.hexId;
+      owner.gateProgress = fakeOwner.gateProgress;
       owner.statusFlags = fakeOwner.statusFlags;
       owner.pendingSelf = fakeOwner.pendingSelf;
     } else if (state.turn.playerId === owner.id) {
@@ -570,9 +716,9 @@ async function triggerZodiacClockSkill(roomCode, state, graph, owner, isThien) {
     const count = state.traps.length;
     state.traps = [];
     const steps = Math.max(1, Math.min(3, count));
-    owner.hexId = computeAdvanceHex(graph, owner.hexId, steps);
+    applySkillRelocation(state, graph, owner, computeAdvanceHex(graph, owner.hexId, steps), 'Gáy Sáng');
   } else if (z === 'Tuất' && isThien) {
-    owner.hexId = computeAdvanceHex(graph, owner.hexId, 2);
+    applySkillRelocation(state, graph, owner, computeAdvanceHex(graph, owner.hexId, 2), 'Trung Nghĩa');
   } else if (z === 'Tuất' && !isThien) {
     owner.statusFlags.guardBonus = 3;
   }
@@ -715,7 +861,7 @@ function applySelfSkillEffectInStep5(state, graph, p, zodiac, isThien) {
     if (ahead[0] && getHexDistance(graph, p.hexId, ahead[0].hexId) <= 5) {
       const target = ahead[0];
       const jumpHex = computePushBackHex(graph, target.hexId, 1, false);
-      p.hexId = jumpHex;
+      applySkillRelocation(state, graph, p, jumpHex, 'Đào Hang');
       addLog(state, `🐀 Tý kích hoạt Đào Hang nhảy tới sau lưng ${target.zodiac}!`);
     }
   } else if (zodiac === 'Mão' && !isThien) {
@@ -799,13 +945,17 @@ export async function playSupportCard(roomCode, rawState, graph, playerId, cardI
     const healed = healHp(state, graph, playerId, 1);
     msg += `hồi +${healed}❤️ (hiện ${p.hp}❤️).`;
   } else if (cardId === 'CAM_BAY') {
-    placeTrap(state, p.hexId, 'CAM_BAY', playerId);
+    if (!placeTrap(state, p.hexId, 'CAM_BAY', playerId)) {
+      throw new Error('Cầu Dài là tuyến an toàn, không thể đặt Cạm Bẫy Gai tại đây!');
+    }
     msg += 'đặt Cạm Bẫy Gai tại ô đang đứng!';
   } else if (cardId === 'DICH_CHUYEN') {
     const valid = others.filter(o => getHexDistance(graph, p.hexId, o.hexId) <= 3);
     const target = valid.find(o => o.id === targetId) || valid[0];
     if (!target) throw new Error('Không có ai trong phạm vi 3 ô để hoán đổi!');
-    const tmp = p.hexId; p.hexId = target.hexId; target.hexId = tmp;
+    if (!applySkillSwap(state, graph, p, target, 'Dịch Chuyển Ngắn')) {
+      throw new Error('Hoán đổi bị chặn vì có thể bỏ qua quá 1 checkpoint. Hãy chọn đối thủ khác hoặc đi qua cổng còn thiếu.');
+    }
     msg += `hoán đổi vị trí với ${target.zodiac}!`;
   } else if (cardId === 'KHOA_CHIEU') {
     const target = others.find(o => o.id === targetId) || others[0];
@@ -916,7 +1066,7 @@ export async function submitCallOut(roomCode, rawState, graph, callerId, guessVa
     await applyDamage(roomCode, state, graph, ownerId, 'Bị Call Out trúng');
     if (caller.statusFlags.dauSafeCallout) {
       await stealRandomCard(roomCode, state, callerId, ownerId);
-      caller.hexId = computeAdvanceHex(graph, caller.hexId, 1);
+      applySkillRelocation(state, graph, caller, computeAdvanceHex(graph, caller.hexId, 1), 'Phá Án');
     }
     state.callout = null;
   } else {
@@ -965,9 +1115,9 @@ async function executeHiddenSkillEffect(roomCode, state, graph, playerId, varian
   if (z === 'Tý') {
     if (variant === 'A') {
       p.statusFlags.combatBonusOnce = 4;
-      p.hexId = computeAdvanceHex(graph, p.hexId, 2);
+      applySkillRelocation(state, graph, p, computeAdvanceHex(graph, p.hexId, 2), 'Ám Sát');
     } else {
-      p.hexId = computeAdvanceHex(graph, p.hexId, 3);
+      applySkillRelocation(state, graph, p, computeAdvanceHex(graph, p.hexId, 3), 'Ké Bóng');
     }
   } else if (z === 'Sửu') {
     if (variant === 'A') p.statusFlags.combatBonusOnce = Math.min(4, (3 - p.hp) * 2 + 2);
@@ -982,7 +1132,9 @@ async function executeHiddenSkillEffect(roomCode, state, graph, playerId, varian
         const d = getHexDistance(graph, p.hexId, o.hexId);
         return d >= 2 && d <= 4;
       }) || nearest;
-      const tmp = p.hexId; p.hexId = target.hexId; target.hexId = tmp;
+      if (!applySkillSwap(state, graph, p, target, 'Huyễn Ảnh')) {
+        addLog(state, '⛔ Huyễn Ảnh không thể bỏ qua quá 1 checkpoint; vị trí được giữ nguyên.');
+      }
     }
   } else if (z === 'Thìn') {
     const mySeason = graph.nodes[p.hexId].season;
@@ -1018,8 +1170,8 @@ async function executeHiddenSkillEffect(roomCode, state, graph, playerId, varian
         if (lid !== playerId) await applyDamage(roomCode, state, graph, lid, 'Đồng Minh Kẻ Yếu của Mùi');
       }
     } else {
-      p.hexId = computeAdvanceHex(graph, p.hexId, 2);
-      if (nearest) nearest.hexId = computeAdvanceHex(graph, nearest.hexId, 2);
+      applySkillRelocation(state, graph, p, computeAdvanceHex(graph, p.hexId, 2), 'Cộng Hưởng Bầy Đàn');
+      if (nearest) applySkillRelocation(state, graph, nearest, computeAdvanceHex(graph, nearest.hexId, 2), 'Cộng Hưởng Bầy Đàn');
     }
   } else if (z === 'Thân') {
     if (variant === 'A') {
@@ -1031,7 +1183,7 @@ async function executeHiddenSkillEffect(roomCode, state, graph, playerId, varian
   } else if (z === 'Dậu') {
     if (variant === 'A') {
       p.statusFlags.dauSafeCallout = true;
-      p.hexId = computeAdvanceHex(graph, p.hexId, 1);
+      applySkillRelocation(state, graph, p, computeAdvanceHex(graph, p.hexId, 1), 'Phá Án');
     } else {
       await drawSupportCards(roomCode, state, playerId, 1);
       const hiddenTarget = others.find(o => !o.hiddenRevealed);
@@ -1061,7 +1213,7 @@ async function executeHiddenSkillEffect(roomCode, state, graph, playerId, varian
       p.statusFlags.hoiSleepShield = true;
     } else {
       p.statusFlags.hoiSleepSteal = true;
-      p.hexId = computeAdvanceHex(graph, p.hexId, 1);
+      applySkillRelocation(state, graph, p, computeAdvanceHex(graph, p.hexId, 1), 'Mộng Du');
     }
   }
 }
@@ -1141,7 +1293,7 @@ export async function proceedToStep5(roomCode, rawState, graph) {
     if (ahead) {
       const aheadDist = graph.nodes[ahead.hexId]?.distToFinish ?? 999;
       const steps = Math.min(5, Math.max(1, myDist - aheadDist - 1));
-      p.hexId = computeAdvanceHex(graph, p.hexId, steps);
+      applySkillRelocation(state, graph, p, computeAdvanceHex(graph, p.hexId, steps), 'Đào Hang');
       addLog(state, `🐀 Đào Hang kích hoạt: Tý nhảy tiến +${steps} ô bám đuôi ${ahead.zodiac}!`);
     }
   }
@@ -1201,15 +1353,16 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
   if (targetHexId !== startHexId) {
     const mp = calculateCurrentMp(state, graph);
     const extraCost = state.blizzardRoundsLeft > 0 ? 1 : 0;
-    const { reachable, prev } = getReachableHexes(graph, startHexId, mp, {
+    const { reachable, pathByHex } = getReachableHexes(graph, startHexId, mp, {
       extraCost,
-      flatCostOne: state.turn.flatCostOne
+      flatCostOne: state.turn.flatCostOne,
+      gateProgress: p.gateProgress ?? 12
     });
     if (!reachable.has(targetHexId)) {
       throw new Error(`Ô ${targetHexId} hiện không nằm trong tầm di chuyển (${mp} MP). Hãy chọn một ô đích đang được viền xanh.`);
     }
 
-    const path = reconstructPath(prev, startHexId, targetHexId);
+    const path = pathByHex[targetHexId] || [];
     if (path.length === 0) {
       throw new Error('Không tìm được đường đi tới ô đã chọn. Hãy thử chọn ô khác.');
     }
@@ -1219,6 +1372,13 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
       finalHex = stepHex;
       movedSteps += 1;
       const node = graph.nodes[stepHex];
+
+      // Ghi nhận checkpoint theo đúng thứ tự khi đi qua từng ô.
+      if (node.checkpointIndex === p.gateProgress) {
+        const checkpoint = ALL_CHECKPOINTS[p.gateProgress];
+        p.gateProgress += 1;
+        if (checkpoint) addLog(state, `🏁 ${p.zodiac} vượt ${checkpoint.name}! Tiến độ ${p.gateProgress}/12.`);
+      }
 
       // 1. Trạm Rút Thẻ (đi qua hoặc dừng đều tính 1 lần mỗi ván)
       if ((node.terrain === 'station_sm' || node.terrain === 'station_big') && !p.claimedStations.includes(stepHex)) {
@@ -1230,7 +1390,7 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
 
       // 2. Token Bẫy
       const trapIdx = state.traps.findIndex(t => t.hexId === stepHex && t.ownerId !== pid);
-      if (trapIdx !== -1 && !state.turn.ignoreTraps) {
+      if (trapIdx !== -1 && !state.turn.ignoreTraps && node.terrain !== 'bridge_long') {
         const [trap] = state.traps.splice(trapIdx, 1);
         if (trap.type === 'DOC') {
           p.statusFlags.poisoned = true;
@@ -1267,8 +1427,13 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
         }
       }
 
-      // 5. Đích Thiên Đình
+      // 5. Đích Thiên Đình — yêu cầu đủ 12 checkpoint.
       if (stepHex === graph.finishId) {
+        if ((p.gateProgress || 0) < 12) {
+          finalHex = prevStep;
+          addLog(state, `🚧 ${p.zodiac} chưa thể vào Thiên Đình vì còn thiếu checkpoint (${p.gateProgress || 0}/12)!`);
+          break;
+        }
         p.hexId = stepHex;
         state.status = 'finished';
         state.winnerId = pid;
@@ -1284,8 +1449,22 @@ export async function executeMove(roomCode, rawState, graph, targetHexId) {
     if (graph.nodes[finalHex].terrain === 'ice') {
       const slid = computeIceSlide(graph, prevStep, finalHex);
       if (slid !== finalHex) {
-        finalHex = slid;
-        addLog(state, `❄️ Băng Trơn! ${p.zodiac} trượt thẳng thêm 1 ô!`);
+        const slideNode = graph.nodes[slid];
+        if (slideNode.checkpointIndex !== undefined && slideNode.checkpointIndex > (p.gateProgress || 0)) {
+          addLog(state, `🚧 Băng Trơn đưa ${p.zodiac} tới checkpoint chưa mở; cú trượt bị dừng lại.`);
+        } else {
+          if (slideNode.checkpointIndex === (p.gateProgress || 0)) {
+            const checkpoint = ALL_CHECKPOINTS[p.gateProgress || 0];
+            p.gateProgress = (p.gateProgress || 0) + 1;
+            if (checkpoint) addLog(state, `🏁 ${p.zodiac} trượt qua ${checkpoint.name}! Tiến độ ${p.gateProgress}/12.`);
+          }
+          if (slid === graph.finishId && (p.gateProgress || 0) < 12) {
+            addLog(state, `🚧 Băng Trơn không thể đưa ${p.zodiac} vào Thiên Đình khi chưa đủ 12 checkpoint.`);
+          } else {
+            finalHex = slid;
+            addLog(state, `❄️ Băng Trơn! ${p.zodiac} trượt thẳng thêm 1 ô!`);
+          }
+        }
         if (finalHex === graph.finishId) {
           p.hexId = finalHex;
           state.status = 'finished';
@@ -1480,8 +1659,9 @@ export async function resolveCombatRoll(roomCode, rawState, graph) {
 
     addLog(state, `⚔️ Kết quả Hỗn chiến: ${scores.map(s => `${state.players[s.id].zodiac}(${s.total})`).join(' - ')}`);
     for (const w of winners) {
+      const winner = state.players[w.id];
       const step = winners.length > 1 ? 1 : 2;
-      state.players[w.id].hexId = computeAdvanceHex(graph, state.players[w.id].hexId, step);
+      applySkillRelocation(state, graph, winner, computeAdvanceHex(graph, winner.hexId, step), 'Thắng Hỗn Chiến');
     }
     if (high !== low) {
       for (const l of losers) {
@@ -1539,7 +1719,7 @@ export async function resolveCombatRoll(roomCode, rawState, graph) {
   // Kiểm tra Sửu B (Phản Lực Trâu Điên)
   if (loser.statusFlags.suuCounter) {
     delete loser.statusFlags.suuCounter;
-    loser.hexId = computeAdvanceHex(graph, loser.hexId, 1);
+    applySkillRelocation(state, graph, loser, computeAdvanceHex(graph, loser.hexId, 1), 'Phản Lực Trâu Điên');
     winner.hexId = computePushBackHex(graph, winner.hexId, 2, false);
     addLog(state, `🐂 Phản Lực Trâu Điên! ${loser.zodiac} tiến +1 ô và hất ${winner.zodiac} lùi 2 ô!`);
   } else if (season !== 'THU') {
@@ -1625,7 +1805,11 @@ export async function runBotStep(roomCode, rawState, graph) {
   } else if (state.turn.phase === 'STEP5_MOVE') {
     const mp = calculateCurrentMp(state, graph);
     const extraCost = state.blizzardRoundsLeft > 0 ? 1 : 0;
-    const { reachable } = getReachableHexes(graph, p.hexId, mp, { extraCost, flatCostOne: state.turn.flatCostOne });
+    const { reachable } = getReachableHexes(graph, p.hexId, mp, {
+      extraCost,
+      flatCostOne: state.turn.flatCostOne,
+      gateProgress: p.gateProgress ?? 12
+    });
     let bestHex = p.hexId;
     let bestDist = graph.nodes[p.hexId].distToFinish;
     for (const h of reachable) {

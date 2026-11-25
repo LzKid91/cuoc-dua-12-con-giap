@@ -49,6 +49,7 @@ function makePlayerObj(id, name, zodiac, color, isBot = false) {
     handCount: 0,
     claimedStations: [],
     pendingSelf: [],
+    gateProgress: 0,
     statusFlags: {}
   };
 }
@@ -174,6 +175,9 @@ export function normalizePublicState(state) {
       if (p) {
         p.claimedStations = toArray(p.claimedStations);
         p.pendingSelf = toArray(p.pendingSelf);
+        // Phòng cũ chưa có checkpoint được xem như đã qua cổng; ván v3.1 mới bắt đầu 0/12.
+        if (!Number.isInteger(p.gateProgress)) p.gateProgress = state.mapVersion === '3.1' ? 0 : 12;
+        p.gateProgress = Math.max(0, Math.min(12, p.gateProgress));
         p.statusFlags = p.statusFlags || {};
       }
     }
