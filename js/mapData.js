@@ -95,6 +95,7 @@ export function buildBoardGraph() {
     XUAN: {
       '0,-4': 'start', '1,-4': 'start', '2,-4': 'start', '3,-4': 'start', '4,-4': 'start',
       '0,0': 'station_big', '-3,2': 'station_sm', '2,1': 'station_sm',
+      '-2,1': 'flower_thicket',
       '-2,0': 'river', '-1,0': 'river', '-1,-1': 'river', '1,1': 'river', '2,0': 'river', '1,2': 'river'
     },
     HA: {
