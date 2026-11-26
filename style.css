@@ -248,18 +248,32 @@ button:hover { filter: brightness(0.92); }
 /* Modal Tra cứu */
 .modal {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(5, 7, 16, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center;
   z-index: 100;
+  animation: modalFadeIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .modal-content {
   background: #fffdf7;
   width: min(760px, 94vw);
   max-height: 85vh;
-  border-radius: 10px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(245, 185, 76, 0.5);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: modalPopIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalPopIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .modal-header {
   background: #2c2520; color: #fff;
@@ -1024,38 +1038,127 @@ button:hover { filter: brightness(0.92); }
 }
 
 /* ============================================================
-   PHÒNG CHỜ (WAITING LOBBY) – PHONG CÁCH VŨ TRỤ THỜI KHÔNG
+   PHÒNG CHỜ (WAITING LOBBY) – PHONG CÁCH GAME CHIẾN THUẬT THIÊN ĐÌNH
    ============================================================ */
 .waiting-starfield-screen {
   position: relative;
   overflow-y: auto;
-  background: radial-gradient(circle at 18% 22%, rgba(106, 87, 242, 0.25) 0%, transparent 45%),
-              radial-gradient(circle at 82% 78%, rgba(247, 160, 52, 0.18) 0%, transparent 45%),
-              radial-gradient(circle at 50% 50%, #0b1028 0%, #02030a 85%) !important;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(124, 58, 237, 0.28) 0%, transparent 44%),
+    radial-gradient(circle at 84% 80%, rgba(245, 158, 11, 0.22) 0%, transparent 46%),
+    radial-gradient(circle at 50% 50%, #0d122b 0%, #03040c 85%) !important;
   width: 100%;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 30px 20px;
+  padding: 28px 20px;
   color: #f4f0e8;
   box-sizing: border-box;
 }
 
+.waiting-starfield-screen::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 24%, rgba(255, 224, 140, 0.75), transparent),
+    radial-gradient(1px 1px at 28% 68%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1.5px 1.5px at 46% 14%, rgba(196, 181, 253, 0.7), transparent),
+    radial-gradient(1px 1px at 67% 42%, rgba(255, 255, 255, 0.55), transparent),
+    radial-gradient(2px 2px at 82% 19%, rgba(255, 196, 86, 0.75), transparent),
+    radial-gradient(1.5px 1.5px at 90% 74%, rgba(167, 139, 250, 0.65), transparent),
+    radial-gradient(1px 1px at 19% 88%, rgba(255, 255, 255, 0.5), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.waiting-ambient-ring {
+  position: fixed;
+  width: min(92vw, 980px);
+  height: min(92vw, 980px);
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 196, 86, 0.12);
+  box-shadow:
+    inset 0 0 90px rgba(124, 58, 237, 0.08),
+    0 0 120px rgba(245, 158, 11, 0.06);
+  pointer-events: none;
+  z-index: 0;
+  animation: celestialSlowSpin 80s linear infinite;
+}
+
+.waiting-ambient-ring::before {
+  content: '';
+  position: absolute;
+  inset: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(196, 181, 253, 0.08);
+}
+
+@keyframes celestialSlowSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .waiting-box {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  max-width: 1060px;
-  background: rgba(18, 20, 34, 0.75);
+  max-width: 1080px;
+  background:
+    linear-gradient(180deg, rgba(24, 24, 44, 0.9) 0%, rgba(12, 13, 26, 0.94) 100%);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  padding: 26px 28px;
+  border: 1.5px solid rgba(245, 185, 76, 0.34);
+  border-radius: 18px;
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, 0.78),
+    0 0 40px rgba(245, 158, 11, 0.08),
+    inset 0 1px 0 rgba(255, 226, 154, 0.28),
+    inset 0 0 0 4px rgba(255, 255, 255, 0.025);
+  padding: 24px 28px;
   margin: auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* Góc hoa văn khung game Thiên Đình */
+.waiting-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  z-index: 3;
+}
+.waiting-corner.tl {
+  top: -2px; left: -2px;
+  border-top: 3px solid #fbbf24;
+  border-left: 3px solid #fbbf24;
+  border-top-left-radius: 10px;
+  box-shadow: -2px -2px 10px rgba(251, 191, 36, 0.35);
+}
+.waiting-corner.tr {
+  top: -2px; right: -2px;
+  border-top: 3px solid #fbbf24;
+  border-right: 3px solid #fbbf24;
+  border-top-right-radius: 10px;
+  box-shadow: 2px -2px 10px rgba(251, 191, 36, 0.35);
+}
+.waiting-corner.bl {
+  bottom: -2px; left: -2px;
+  border-bottom: 3px solid #fbbf24;
+  border-left: 3px solid #fbbf24;
+  border-bottom-left-radius: 10px;
+  box-shadow: -2px 2px 10px rgba(251, 191, 36, 0.35);
+}
+.waiting-corner.br {
+  bottom: -2px; right: -2px;
+  border-bottom: 3px solid #fbbf24;
+  border-right: 3px solid #fbbf24;
+  border-bottom-right-radius: 10px;
+  box-shadow: 2px 2px 10px rgba(251, 191, 36, 0.35);
 }
 
 .waiting-header {
@@ -1065,7 +1168,18 @@ button:hover { filter: brightness(0.92); }
   justify-content: space-between;
   gap: 14px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.18);
+  position: relative;
+}
+
+.waiting-header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 140px;
+  height: 2px;
+  background: linear-gradient(90deg, #fbbf24, transparent);
 }
 
 .waiting-title-wrap {
@@ -1076,38 +1190,42 @@ button:hover { filter: brightness(0.92); }
 }
 
 .waiting-tag {
-  background: rgba(183, 164, 255, 0.16);
-  color: #c4b5fd;
-  border: 1px solid rgba(196, 181, 253, 0.35);
-  font-size: 0.74rem;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(88, 28, 135, 0.35));
+  color: #e9d5ff;
+  border: 1px solid rgba(196, 181, 253, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 14px rgba(139, 92, 246, 0.25);
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 1.5px;
-  padding: 5px 12px;
-  border-radius: 999px;
+  letter-spacing: 1.8px;
+  padding: 6px 13px;
+  border-radius: 8px;
   text-transform: uppercase;
 }
 
 .waiting-header h2 {
+  font-family: 'Playfair Display', 'Plus Jakarta Sans', serif;
   font-size: 1.25rem;
   font-weight: 800;
-  color: #ffffff;
+  color: #fef3c7;
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  letter-spacing: 0.4px;
 }
 
 .code-highlight {
   font-family: 'Plus Jakarta Sans', monospace, sans-serif;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 900;
-  letter-spacing: 3px;
-  color: #ffb347;
-  background: rgba(255, 179, 71, 0.12);
-  border: 1px solid rgba(255, 179, 71, 0.38);
-  padding: 3px 12px;
+  letter-spacing: 3.5px;
+  color: #ffd166;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.2) 0%, rgba(180, 83, 9, 0.25) 100%);
+  border: 1.5px solid rgba(251, 191, 36, 0.55);
+  padding: 4px 14px;
   border-radius: 8px;
-  text-shadow: 0 0 12px rgba(255, 179, 71, 0.5);
+  text-shadow: 0 0 14px rgba(251, 191, 36, 0.65);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 4px 14px rgba(245, 158, 11, 0.2);
 }
 
 .waiting-header-actions {
@@ -1118,65 +1236,85 @@ button:hover { filter: brightness(0.92); }
 }
 
 .btn-copy {
-  background: linear-gradient(135deg, #ffb347 0%, #ff8f00 100%);
-  color: #1a0f00;
+  background: linear-gradient(180deg, #ffca45 0%, #f59e0b 65%, #d97706 100%);
+  color: #241300;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 800;
-  padding: 8px 14px;
-  border: none;
+  padding: 9px 15px;
+  border: 1px solid #fde68a;
   border-radius: 10px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(255, 143, 0, 0.35);
-  transition: transform 0.2s, filter 0.2s;
+  box-shadow: 0 4px 0 #92400e, 0 8px 18px rgba(245, 158, 11, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: transform 0.12s, box-shadow 0.12s, filter 0.15s;
 }
 
 .btn-copy:hover {
   transform: translateY(-1px);
-  filter: brightness(1.08);
+  filter: brightness(1.06);
+  box-shadow: 0 5px 0 #92400e, 0 10px 22px rgba(245, 158, 11, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.btn-copy:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #92400e, 0 3px 8px rgba(245, 158, 11, 0.3);
 }
 
 .btn-leave {
-  background: rgba(239, 68, 68, 0.16) !important;
-  color: #fca5a5 !important;
-  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.32) 0%, rgba(127, 29, 29, 0.48) 100%) !important;
+  color: #fecaca !important;
+  border: 1px solid rgba(248, 113, 113, 0.5) !important;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 0.85rem;
-  font-weight: 700;
-  padding: 8px 14px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  padding: 9px 15px;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: 0 4px 0 rgba(127, 29, 29, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: all 0.15s;
 }
 
 .btn-leave:hover {
-  background: rgba(239, 68, 68, 0.28) !important;
-  border-color: rgba(239, 68, 68, 0.6) !important;
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.52) 0%, rgba(153, 27, 27, 0.65) 100%) !important;
+  border-color: rgba(252, 165, 165, 0.75) !important;
   color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+.btn-leave:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(127, 29, 29, 0.85);
 }
 
 #btnWaitingGuide {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(55, 65, 95, 0.55) 0%, rgba(30, 34, 58, 0.75) 100%);
+  color: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.35);
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: 9px 15px;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: 0 4px 0 rgba(15, 18, 34, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: all 0.15s;
 }
 
 #btnWaitingGuide:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.32);
-  color: #ffb347;
+  background: linear-gradient(180deg, rgba(71, 85, 120, 0.68) 0%, rgba(38, 43, 72, 0.85) 100%);
+  border-color: rgba(251, 191, 36, 0.5);
+  color: #fde68a;
+  transform: translateY(-1px);
+}
+
+#btnWaitingGuide:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(15, 18, 34, 0.9);
 }
 
 .waiting-content-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.05fr 1fr;
   gap: 24px;
 }
 
@@ -1187,106 +1325,136 @@ button:hover { filter: brightness(0.92); }
 }
 
 .waiting-card {
-  background: transparent;
-  border: none;
-  padding: 0;
+  background: rgba(10, 12, 24, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 18px;
   height: 100%;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.35);
 }
 
-/* Cột Trái: Linh Thú Của Bạn (Phong cách liền mạch không khung thô) */
+/* Cột Trái: Linh Thú Của Bạn (Huy hiệu Thiên Đình & Bảng Kỹ Năng) */
 .my-zodiac-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 2px;
+  gap: 18px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(139, 92, 246, 0.1) 55%, rgba(15, 18, 36, 0.6) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  position: relative;
 }
 
 .my-zodiac-avatar {
-  width: 60px;
-  height: 60px;
+  position: relative;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.2rem;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  font-size: 2.5rem;
+  border: 2.5px solid #fde68a;
   flex-shrink: 0;
+  box-shadow: 0 0 26px rgba(251, 191, 36, 0.4), inset 0 2px 6px rgba(255, 255, 255, 0.35);
+}
+
+.my-zodiac-avatar::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(251, 191, 36, 0.55);
+  animation: celestialSlowSpin 18s linear infinite;
+  pointer-events: none;
 }
 
 .my-zodiac-title {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .my-zodiac-label {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 800;
-  letter-spacing: 1.5px;
-  color: #ffb347;
+  letter-spacing: 2px;
+  color: #fbbf24;
   text-transform: uppercase;
 }
 
 .my-zodiac-title h3 {
-  font-size: 1.65rem;
+  font-family: 'Playfair Display', 'Plus Jakarta Sans', serif;
+  font-size: 1.95rem;
   font-weight: 900;
-  color: #ffffff;
+  background: linear-gradient(180deg, #ffffff 0%, #fde68a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   margin: 0;
-  line-height: 1.1;
+  line-height: 1.05;
+  filter: drop-shadow(0 2px 8px rgba(251, 191, 36, 0.25));
 }
 
 .my-zodiac-badges {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-top: 4px;
 }
 
 .zodiac-meta-pill {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 0.76rem;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
 }
 
 .zodiac-meta-pill strong {
-  color: #ffb347;
+  color: #fbbf24;
 }
 
-/* Kỹ năng Thiên / Địa: Thiết kế vệt sáng không khung hộp */
+/* Kỹ năng Thiên / Địa: Thẻ kỹ năng RPG */
 .skills-overview-frameless {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
 }
 
 .skill-flow-item {
-  padding: 10px 14px;
-  border-radius: 0 12px 12px 0;
+  padding: 11px 14px;
+  border-radius: 10px;
   font-size: 0.83rem;
   line-height: 1.45;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .skill-flow-item.thien {
-  background: linear-gradient(90deg, rgba(251, 191, 36, 0.12) 0%, rgba(251, 191, 36, 0.02) 100%);
-  border-left: 3px solid #fbbf24;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(30, 24, 16, 0.55) 100%);
+  border-left: 4px solid #fbbf24;
+  border-color: rgba(251, 191, 36, 0.24);
+  border-left-color: #fbbf24;
 }
 
 .skill-flow-item.dia {
-  background: linear-gradient(90deg, rgba(56, 189, 248, 0.12) 0%, rgba(56, 189, 248, 0.02) 100%);
-  border-left: 3px solid #38bdf8;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(16, 26, 42, 0.55) 100%);
+  border-left: 4px solid #38bdf8;
+  border-color: rgba(56, 189, 248, 0.24);
+  border-left-color: #38bdf8;
 }
 
 .skill-flow-tag {
   font-weight: 800;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  font-size: 0.86rem;
 }
 
 .skill-flow-item.thien .skill-flow-tag {
@@ -1298,23 +1466,26 @@ button:hover { filter: brightness(0.92); }
 }
 
 .skill-flow-tag small {
-  font-size: 0.72rem;
-  opacity: 0.85;
-  font-weight: 600;
-  margin-left: 4px;
+  font-size: 0.7rem;
+  opacity: 0.9;
+  font-weight: 700;
+  margin-left: 5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .skill-flow-desc {
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(248, 250, 252, 0.86);
   font-size: 0.79rem;
 }
 
-/* Lựa chọn Kỹ Năng Ẩn (Bí Mật) */
+/* Lựa chọn Kỹ Năng Ẩn (Thẻ Bí Thuật) */
 .secret-choice-frameless {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .secret-choice-header {
@@ -1328,45 +1499,50 @@ button:hover { filter: brightness(0.92); }
 .secret-choice-header span {
   font-size: 0.88rem;
   font-weight: 800;
-  color: #c4b5fd;
+  color: #ddd6fe;
   display: flex;
   align-items: center;
   gap: 6px;
+  text-shadow: 0 0 10px rgba(167, 139, 250, 0.4);
 }
 
 .secret-choice-header small {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 0.74rem;
 }
 
 .hidden-cards-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
 }
 
 .hidden-card-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(35, 38, 64, 0.75) 0%, rgba(20, 22, 40, 0.9) 100%);
+  border: 1.5px solid rgba(148, 163, 184, 0.22);
   border-radius: 12px;
-  padding: 11px 14px;
+  padding: 12px 14px;
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
   color: #f4f0e8;
   font-family: 'Plus Jakarta Sans', sans-serif;
+  box-shadow: 0 3px 0 rgba(8, 10, 20, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .hidden-card-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: linear-gradient(180deg, rgba(48, 52, 84, 0.85) 0%, rgba(26, 28, 50, 0.95) 100%);
+  border-color: rgba(251, 191, 36, 0.45);
   transform: translateY(-1px);
 }
 
 .hidden-card-btn.selected {
-  background: rgba(245, 158, 11, 0.14);
-  border-color: #f59e0b;
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(120, 53, 15, 0.28) 100%);
+  border: 1.5px solid #fbbf24;
+  box-shadow:
+    0 3px 0 #92400e,
+    0 0 24px rgba(245, 158, 11, 0.28),
+    inset 0 1px 0 rgba(254, 243, 199, 0.35);
 }
 
 .hidden-card-top {
@@ -1374,6 +1550,7 @@ button:hover { filter: brightness(0.92); }
   justify-content: space-between;
   align-items: center;
   margin-bottom: 4px;
+  gap: 8px;
 }
 
 .hidden-var-name {
@@ -1387,60 +1564,66 @@ button:hover { filter: brightness(0.92); }
 }
 
 .hidden-selected-badge {
-  background: #f59e0b;
-  color: #1a0f00;
+  background: linear-gradient(180deg, #fde047 0%, #f59e0b 100%);
+  color: #241300;
   font-size: 0.68rem;
   font-weight: 900;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: 999px;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
+  flex-shrink: 0;
 }
 
 .hidden-card-desc {
   font-size: 0.79rem;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(241, 245, 249, 0.82);
   line-height: 1.4;
 }
 
 .secret-riddle-quote {
   font-size: 0.76rem;
-  color: rgba(216, 180, 254, 0.85);
-  padding: 0 4px;
+  color: #e9d5ff;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px dashed rgba(196, 181, 253, 0.3);
+  border-radius: 8px;
+  padding: 7px 11px;
 }
 
-/* Cột Phải: Danh sách người chơi trong phòng (Thiết kế sáng tạo) */
+/* Cột Phải: Danh sách người chơi trong phòng */
 .roster-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.16);
 }
 
 .roster-header h3 {
-  font-size: 1.05rem;
+  font-family: 'Playfair Display', 'Plus Jakarta Sans', serif;
+  font-size: 1.1rem;
   font-weight: 800;
-  color: #ffffff;
+  color: #fef3c7;
   margin: 0;
 }
 
-/* Thanh điểm danh 12 con giáp */
+/* Thanh điểm danh 12 con giáp (Linh Thú Ấn) */
 .zodiac-dots-tracker {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 4px 0 8px;
+  padding: 2px 0 6px;
 }
 
 .zodiac-dot-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  color: rgba(255, 255, 255, 0.4);
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.38);
   font-size: 0.74rem;
   font-weight: 600;
   transition: all 0.2s;
@@ -1448,11 +1631,11 @@ button:hover { filter: brightness(0.92); }
 }
 
 .zodiac-dot-pill.is-active {
-  background: rgba(168, 85, 247, 0.22);
-  border-color: rgba(168, 85, 247, 0.6);
-  color: #f3e8ff;
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
-  font-weight: 700;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.32), rgba(245, 158, 11, 0.2));
+  border-color: rgba(251, 191, 36, 0.65);
+  color: #fef3c7;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font-weight: 800;
 }
 
 .dot-emoji {
@@ -1475,47 +1658,48 @@ button:hover { filter: brightness(0.92); }
 }
 
 .slot-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(30, 34, 58, 0.75) 0%, rgba(18, 20, 36, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   padding: 10px 14px;
   display: flex;
   align-items: center;
   gap: 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition: transform 0.15s, border-color 0.15s;
 }
 
 .slot-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: linear-gradient(135deg, rgba(38, 43, 72, 0.85) 0%, rgba(22, 25, 44, 0.95) 100%);
+  border-color: rgba(251, 191, 36, 0.35);
 }
 
 .slot-card.is-me {
-  background: rgba(147, 51, 234, 0.16);
-  border-color: rgba(168, 85, 247, 0.5);
-  box-shadow: 0 0 18px rgba(168, 85, 247, 0.2);
+  background: linear-gradient(135deg, rgba(126, 34, 206, 0.28) 0%, rgba(30, 22, 54, 0.88) 100%);
+  border: 1.5px solid rgba(192, 132, 252, 0.65);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .slot-avatar {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   flex-shrink: 0;
   color: #fff;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(253, 230, 138, 0.65);
 }
 
 .status-pulse-dot {
   position: absolute;
   bottom: -1px;
   right: -1px;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #10b981;
   border: 2px solid #0f1020;
@@ -1539,7 +1723,7 @@ button:hover { filter: brightness(0.92); }
 
 .slot-name {
   font-weight: 800;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
@@ -1548,68 +1732,71 @@ button:hover { filter: brightness(0.92); }
 
 .slot-sub {
   font-size: 0.76rem;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.68);
 }
 
 .slot-zodiac-text strong {
-  color: #ffb347;
-  font-weight: 700;
+  color: #fbbf24;
+  font-weight: 800;
 }
 
 .badge-you {
-  background: #3b82f6;
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
   color: #fff;
   font-size: 0.65rem;
   font-weight: 800;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
 }
 
 .badge-host {
-  background: #f59e0b;
+  background: linear-gradient(180deg, #fcd34d, #d97706);
   color: #1a0f00;
   font-size: 0.65rem;
-  font-weight: 800;
-  padding: 1px 6px;
-  border-radius: 4px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 5px;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
 }
 
 .badge-bot {
-  background: #64748b;
+  background: linear-gradient(180deg, #94a3b8, #475569);
   color: #fff;
   font-size: 0.65rem;
   font-weight: 800;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
 }
 
-/* Banner mời bạn bè / vị trí trống sáng tạo (Thay thế 11 ô vuông nét đứt) */
+/* Banner mời bạn bè / vị trí trống */
 .roster-empty-invite {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: radial-gradient(circle at 15% 50%, rgba(251, 191, 36, 0.1), rgba(15, 18, 34, 0.6));
+  border: 1.5px dashed rgba(251, 191, 36, 0.32);
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 15px 16px;
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-top: 6px;
+  margin-top: auto;
   transition: border-color 0.2s, background 0.2s;
 }
 
 .roster-empty-invite:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 179, 71, 0.4);
+  background: radial-gradient(circle at 15% 50%, rgba(251, 191, 36, 0.16), rgba(20, 24, 46, 0.75));
+  border-color: rgba(251, 191, 36, 0.58);
 }
 
 .invite-icon {
-  font-size: 1.6rem;
+  font-size: 1.65rem;
   flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6));
 }
 
 .invite-content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .invite-title {
@@ -1619,28 +1806,29 @@ button:hover { filter: brightness(0.92); }
 }
 
 .invite-title strong {
-  color: #ffb347;
+  color: #fbbf24;
 }
 
 .invite-sub {
   font-size: 0.77rem;
-  color: rgba(255, 255, 255, 0.65);
-  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.45;
 }
 
 .invite-code {
   font-family: monospace;
-  color: #ffb347;
-  font-weight: 800;
-  background: rgba(255, 179, 71, 0.15);
-  padding: 1px 6px;
-  border-radius: 4px;
+  color: #ffd166;
+  font-weight: 900;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  padding: 1px 7px;
+  border-radius: 5px;
 }
 
 /* Thanh điều khiển đáy phòng chờ */
 .waiting-footer {
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 16px;
+  border-top: 1px solid rgba(251, 191, 36, 0.18);
 }
 
 .host-controls {
@@ -1652,62 +1840,100 @@ button:hover { filter: brightness(0.92); }
 }
 
 .host-badge {
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   font-weight: 800;
   color: #fde68a;
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  padding: 8px 14px;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.2) 0%, rgba(146, 64, 14, 0.25) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  padding: 9px 15px;
   border-radius: 10px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .host-btn-group {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .btn-add-bot {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  background: linear-gradient(180deg, rgba(55, 65, 95, 0.7) 0%, rgba(30, 34, 58, 0.9) 100%);
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  color: #f8fafc;
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 0.88rem;
-  font-weight: 700;
+  font-weight: 800;
   padding: 10px 18px;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: 0 4px 0 rgba(15, 18, 34, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.15s;
 }
 
 .btn-add-bot:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(180deg, rgba(71, 85, 120, 0.8) 0%, rgba(38, 43, 72, 0.95) 100%);
+  border-color: rgba(251, 191, 36, 0.48);
+  color: #fde68a;
   transform: translateY(-1px);
 }
 
+.btn-add-bot:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(15, 18, 34, 0.95);
+}
+
 .btn-start-game {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #34d399 0%, #10b981 48%, #059669 100%);
+  color: #022c22;
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 0.98rem;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  padding: 10px 24px;
-  border: none;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  padding: 11px 28px;
+  border: 1px solid #a7f3d0;
   border-radius: 12px;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-  transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+  box-shadow:
+    0 5px 0 #065f46,
+    0 10px 26px rgba(16, 185, 129, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transition: transform 0.12s, box-shadow 0.12s, filter 0.15s;
+}
+
+.btn-start-game::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  transform: skewX(-22deg);
+  animation: btnShineSweep 3.8s ease-in-out infinite;
+}
+
+@keyframes btnShineSweep {
+  0%, 60% { left: -120%; }
+  100% { left: 160%; }
 }
 
 .btn-start-game:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 26px rgba(16, 185, 129, 0.55);
-  filter: brightness(1.08);
+  box-shadow:
+    0 7px 0 #065f46,
+    0 14px 32px rgba(16, 185, 129, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  filter: brightness(1.06);
+}
+
+.btn-start-game:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #065f46, 0 4px 12px rgba(16, 185, 129, 0.38);
 }
 
 .guest-notice {
@@ -1715,13 +1941,13 @@ button:hover { filter: brightness(0.92); }
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(251, 191, 36, 0.25);
   padding: 12px 18px;
   border-radius: 12px;
-  color: rgba(255, 255, 255, 0.88);
+  color: #fef3c7;
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .pulse-dot {
@@ -1745,13 +1971,14 @@ button:hover { filter: brightness(0.92); }
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: #2c2520;
+  background: linear-gradient(180deg, #2d2219, #1b140f);
+  border: 1px solid rgba(251, 191, 36, 0.55);
   color: #ffd54f;
   padding: 10px 22px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.88rem;
-  font-weight: 600;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   z-index: 9999;
   pointer-events: none;
   animation: toastFadeIn 0.25s ease-out;
@@ -1760,4 +1987,187 @@ button:hover { filter: brightness(0.92); }
 @keyframes toastFadeIn {
   from { opacity: 0; transform: translate(-50%, 10px); }
   to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ============================================================
+   HIỆU ỨNG UI MƯỢT MÀ (SMOOTH ANIMATIONS & MICRO-INTERACTIONS)
+   ============================================================ */
+@keyframes waitingBoxEnter {
+  from { opacity: 0; transform: translateY(18px) scale(0.975); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes uiFadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cornerGlowPulse {
+  0%, 100% { opacity: 0.72; filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.35)); }
+  50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.75)); }
+}
+
+@keyframes avatarFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes badgePop {
+  0% { opacity: 0; transform: scale(0.75); }
+  70% { transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes startBtnBreath {
+  0%, 100% {
+    box-shadow: 0 5px 0 #065f46, 0 10px 26px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  }
+  50% {
+    box-shadow: 0 5px 0 #065f46, 0 12px 34px rgba(52, 211, 153, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+}
+
+@keyframes onlineRipple {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.waiting-box {
+  animation: waitingBoxEnter 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.waiting-header {
+  animation: uiFadeSlideUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+
+.waiting-col.my-zodiac-col {
+  animation: uiFadeSlideUp 0.48s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.waiting-col.roster-col {
+  animation: uiFadeSlideUp 0.48s cubic-bezier(0.22, 1, 0.36, 1) 0.18s both;
+}
+
+.waiting-footer {
+  animation: uiFadeSlideUp 0.48s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+}
+
+.waiting-corner {
+  animation: cornerGlowPulse 3.6s ease-in-out infinite;
+}
+
+.my-zodiac-avatar {
+  animation: avatarFloat 4.2s ease-in-out infinite;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease;
+}
+
+.my-zodiac-header:hover .my-zodiac-avatar {
+  transform: scale(1.07);
+}
+
+.skill-flow-item {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+}
+
+.skill-flow-item:hover {
+  transform: translateX(4px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.hidden-card-btn {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+.hidden-card-btn:hover {
+  transform: translateY(-2px);
+}
+
+.hidden-card-btn:active {
+  transform: translateY(1px) scale(0.992);
+}
+
+.hidden-selected-badge {
+  animation: badgePop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.zodiac-dot-pill {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.zodiac-dot-pill:hover {
+  transform: translateY(-2px) scale(1.05);
+}
+
+.slot-card {
+  animation: uiFadeSlideUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+}
+
+.slot-card:hover {
+  transform: translateX(4px);
+}
+
+.status-pulse-dot {
+  animation: onlineRipple 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.btn-copy,
+.btn-leave,
+#btnWaitingGuide,
+.btn-add-bot,
+.btn-start-game {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease, filter 0.18s ease, background 0.18s ease, border-color 0.18s ease !important;
+}
+
+.btn-start-game {
+  animation: startBtnBreath 2.8s ease-in-out infinite;
+}
+
+.btn-start-game:hover {
+  animation: none;
+}
+
+/* Thanh cuộn tinh gọn cho danh sách người chơi & modal */
+.roster-cards-list::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.roster-cards-list::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.roster-cards-list::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb {
+  background: rgba(251, 191, 36, 0.35);
+  border-radius: 999px;
+}
+
+.roster-cards-list::-webkit-scrollbar-thumb:hover,
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(251, 191, 36, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waiting-ambient-ring,
+  .my-zodiac-avatar::after,
+  .my-zodiac-avatar,
+  .waiting-corner,
+  .btn-start-game,
+  .btn-start-game::after,
+  .status-pulse-dot,
+  .pulse-dot,
+  .waiting-box,
+  .waiting-header,
+  .waiting-col,
+  .waiting-footer,
+  .slot-card,
+  .modal,
+  .modal-content {
+    animation: none !important;
+    transition: none !important;
+  }
 }
